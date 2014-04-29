@@ -1,0 +1,1 @@
+lz4ext.o: lz4ext.c externals/lz4/lz4.h externals/lz4/lz4hc.h

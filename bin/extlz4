@@ -1,0 +1,165 @@
+#!ruby
+#vim: set fileencoding:utf-8
+
+# AUTHOR: dearblue <dearblue@sourceforge.co.jp>
+# Only this program is usable as public domain software.
+
+require "extlz4"
+require "optparse"
+
+progname = File.basename(__FILE__)
+opt = OptionParser.new(<<-EOS, 8, "  ")
+Usage: #{progname} [option]... [file]...
+
+  This program is likely lz4-cli. Reinventing the wheel.
+EOS
+
+class << opt
+  #
+  # Define hidden switch.
+  #
+  def hide_on(opt, &block)
+    top.short[opt.to_s[1]] ||= OptionParser::Switch::NoArgument.new(&block)
+  end
+end
+
+mode = nil
+verbose = 1
+opt.separator("")
+level = 1
+opt.on("-1", "fastest (worst) compression (default)") { mode = :encode; level = 1 }
+opt.separator("  -2 .. -8 set compression level")
+opt.hide_on("-2") { mode = :encode; level = 2 }
+opt.hide_on("-3") { mode = :encode; level = 3 }
+opt.hide_on("-4") { mode = :encode; level = 4 }
+opt.hide_on("-5") { mode = :encode; level = 5 }
+opt.hide_on("-6") { mode = :encode; level = 6 }
+opt.hide_on("-7") { mode = :encode; level = 7 }
+opt.hide_on("-8") { mode = :encode; level = 8 }
+opt.on("-9", "best (slowest) compression") { mode = :encode; level = 9 }
+outstdout = false
+opt.on("-c", "write to stdout, keep original files") { outstdout = true }
+opt.on("-d", "uncompress files") { mode = :decode }
+forceoverwrite = false
+opt.on("-f", "force overwriting of output file") { forceoverwrite = true }
+keepfile = false
+opt.on("-k", "don't delete input files during operation") { keepfile = true }
+opt.on("-q", "output no warnings") { verbose = 0 }
+recursive = false
+opt.on("-r", "recursively compress files in directories") { recursive = true }
+opt.on("-t", "test compressed file") { mode = :test }
+opt.on("-v", "increment verbosery level") { verbose += 1 }
+outdir = nil
+opt.on("-Cdir", "set output directory") { |dir| outdir = dir }
+blocksize = 7
+blockdep = false
+blockchecksum = false
+opt.separator("  -B#      set block size [4-7] (default: 7)") # merged to "-BX"
+opt.separator("  -BD      set mode to block dependency (improve compression ratio)") # merged to "-BX"
+opt.on("-BX", "enable block checksum (default: disabled)", %w[4 5 6 7 D X]) do |o|
+  case o
+  when ?4, ?5, ?6, ?7
+    blocksize = o.ord - ?0.ord
+  when ?D
+    blockdep = true
+  when ?X
+    blockchecksum = true
+  else
+    0/0
+  end
+end
+streamchecksum = true
+opt.on("-Sx", "disable stream checksum (default: enabled)", %w(x)) { streamchecksum = false }
+opt.on("-V", "display program version") {
+  puts <<-EOS
+#{progname}: extlz4-cli program version 0.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
+  EOS
+
+  exit 0
+}
+
+begin
+  opt.parse!
+rescue OptionParser::InvalidOption, OptionParser::InvalidArgument
+  $stderr.puts <<-EOS
+#{progname}: #{$!}
+        enter ``#{progname} --help'' to print help.
+  EOS
+  exit 1
+end
+
+if ARGV.empty?
+  if $stdout.tty? && !forceoverwrite && mode != :decode
+    $stderr.puts <<-EOS
+#{progname}: not written to terminal. use ``-f'' to force encode.
+\tor enter ``#{progname} --help'' to print help.
+    EOS
+    exit 1
+  end
+
+  $stdin.binmode
+  $stdout.binmode
+
+  case mode
+  when 0 .. 9, nil
+    LZ4.encode_file($stdin, $stdout, level)
+  when :decode
+    LZ4.decode_file($stdin, $stdout)
+  when :test
+    LZ4.test_file($stdin)
+  else
+    raise NotImplementedError
+  end
+
+  exit 0
+else
+  ARGV.each do |file|
+    begin
+      case
+      when mode == :decode || (mode.nil? && file =~ /\.lz4$/)
+        if outstdout
+          outfile = $stdout.binmode
+        else
+          outfile = File.basename(file, ".lz4")
+          outfile = File.join(outdir, File.basename(outfile)) if outdir
+          if !forceoverwrite && File.exist?(outfile)
+            $stderr.puts "#{progname}: file exists - #{outfile}. (with ``-f'' switch to overwrite)"
+            next
+          end
+        end
+        LZ4.decode_file(file, outfile)
+        if !outstdout
+          t = File.mtime(file)
+          File.utime(t, t, outfile)
+          File.unlink(file) if !keepfile
+        end
+      when mode == :encode || mode.nil?
+        if outstdout
+          outfile = $stdout.binmode
+        else
+          outfile = file + ".lz4"
+          outfile = File.join(outdir, File.basename(outfile)) if outdir
+          if !forceoverwrite && File.exist?(outfile)
+            $stderr.puts "#{progname}: file exists - #{outfile}. (with ``-f'' switch to overwrite)"
+            next
+          end
+        end
+        LZ4.encode_file(file, outfile, level,
+                        block_dependency: blockdep,
+                        block_checksum: blockchecksum,
+                        stream_checksum: streamchecksum)
+        if !outstdout
+          t = File.mtime(file)
+          File.utime(t, t, outfile)
+          File.unlink(file) if !keepfile
+        end
+      when mode == :test
+        LZ4.test_file(file)
+      else
+        $stderr.puts "#{progname}: mode error - #{mode}"
+      end
+    rescue LZ4::Error #, Object
+      $stderr.puts "#{progname}: #{file} - #$! (#{$!.class})"
+    end
+  end
+end
