@@ -6,7 +6,7 @@ if $:.find { |dir| File.exist?(File.join(dir, "xxhash.rb")) } ||
   require "xxhash"
 else
   unless ENV["RUBY_EXTLZ4_NOT_WARN"]
-    warn "#{caller(0, 1)[0]}: warn - ``xxhash'' library is not found. Posible feature is limited only. If you want full features, try ``gem install xxhash'' or ``ruby --enable gems''."
+    warn "#{File.basename caller(0, 1)[0]}: warn - ``xxhash'' library is not found. Posible feature is limited only. If you want full features, try ``gem install xxhash'' or ``ruby --enable gems''."
   end
 end
 
@@ -47,7 +47,8 @@ module LZ4
       decode(infile) do |lz4|
         open_file(outpath, "wb") do |outfile|
           inbuf = ""
-          outfile << inbuf while lz4.read(262144, inbuf)
+          slicesize = 1 << 20
+          outfile << inbuf while lz4.read(slicesize, inbuf)
         end
       end
     end
@@ -81,7 +82,8 @@ module LZ4
       open_file(outpath, "wb") do |outfile|
         encode(outfile, level, opt) do |lz4|
           inbuf = ""
-          lz4 << inbuf while infile.read(262144, inbuf)
+          slicesize = 1 << 20
+          lz4 << inbuf while infile.read(slicesize, inbuf)
         end
       end
     end
@@ -93,7 +95,8 @@ module LZ4
     open_file(inpath, "rb") do |infile|
       decode(infile) do |lz4|
         inbuf = ""
-        nil while lz4.read(262144, inbuf)
+        slicesize = 1 << 20
+        nil while lz4.read(slicesize, inbuf)
       end
     end
 
@@ -182,7 +185,7 @@ module LZ4
   # [output_io (IO)]
   #   LZ4 ストリームの出力先を指定します。IO#<< と同等の機能を持つオブジェクトである必要があります。
   #
-  #   一例を挙げると、IO、StringIO、String などのインスタンスが当てはまります。
+  #   一例を挙げると、IO、StringIO、Array などのインスタンスが当てはまります。
   #
   # ==== encode(output_io, level = 1, opts = {}) { |stream_encoder| ... } -> yield_status
   #
@@ -393,18 +396,14 @@ module LZ4
       raise ArgumentError, "wrong blocksize (#{blocksize})" unless @blocksize
 
       @block_dependency = !!block_dependency
-      level = level ? level.to_i : 0
-      ishc = level > 3 ? true : false
-      workencbuf = ""
+      level = level ? level.to_i : nil
       case
-      when block_dependency
-        streamencoder = LZ4::RawStreamEncoder.new(@blocksize, ishc)
-        @encoder = ->(src) { streamencoder.update(src, workencbuf) }
-      when ishc
-        @encoder = ->(src) { LZ4.raw_encode(level, src, workencbuf) }
-      else
-        @encoder = ->(src) { LZ4.raw_encode(nil, src, workencbuf) }
+      when level.nil? || level < 4
+        level = nil
+      when level > 16
+        level = 16
       end
+      @encoder = get_encoder(level, @block_dependency)
       @io = io
       @buf = "".force_encoding(Encoding::BINARY)
 
@@ -442,13 +441,14 @@ module LZ4
     #
     def write(data)
       return nil if data.nil?
-      data = data.to_s
-      off = 0
-      while off < data.bytesize
-        @buf << w = data.byteslice(off, [@blocksize - @buf.bytesize, @blocksize].min)
-        off += w.bytesize
-        next if @buf.bytesize < @blocksize
-        export_block
+      @slicebuf ||= ""
+      @inputproxy ||= StringIO.new
+      @inputproxy.string = String(data)
+      until @inputproxy.eof?
+        slicesize = @blocksize - @buf.bytesize
+        slicesize = @blocksize if slicesize > @blocksize
+        @buf << @inputproxy.read(slicesize, @slicebuf)
+        export_block if @buf.bytesize >= @blocksize
       end
 
       self
@@ -471,6 +471,17 @@ module LZ4
     end
 
     private
+    def get_encoder(level, block_dependency)
+      workencbuf = ""
+      if block_dependency
+        streamencoder = LZ4::RawStreamEncoder.new(@blocksize, level)
+        ->(src) { streamencoder.update(level, src, workencbuf) }
+      else
+        ->(src) { LZ4.raw_encode(level, src, workencbuf) }
+      end
+    end
+
+    private
     def export_block
       w = @encoder.(@buf)
       @stream_checksum.update(@buf) if @stream_checksum
@@ -479,7 +490,7 @@ module LZ4
         @io << [w.bytesize].pack("V") << w
       else
         # 圧縮後は上限を超過したため、無圧縮データを出力する
-        @io << [w.bytesize | LITERAL_DATA_BLOCK_FLAG].pack("V") << @buf
+        @io << [@buf.bytesize | LITERAL_DATA_BLOCK_FLAG].pack("V") << @buf
         w = @buf
       end
 
@@ -551,6 +562,9 @@ module LZ4
 
       @io = io
       @pos = 0
+
+      @readbuf = "".b
+      @decodebuf = "".b
     end
 
     def close
@@ -605,7 +619,11 @@ module LZ4
 
     private
     def read_all
-      dest = @buf || ""
+      if @buf
+        dest = @buf.read
+      else
+        dest = ""
+      end
       @buf = nil
       w = nil
       dest << w while w = getnextblock
@@ -619,9 +637,11 @@ module LZ4
       return dest unless size > 0
       return nil unless @pos
 
-      while true
-        unless @buf && !@buf.empty?
-          unless @buf = getnextblock
+      @slicebuf ||= ""
+
+      begin
+        unless @buf && !@buf.eof?
+          unless w = getnextblock
             @pos = nil
             if dest.empty?
               return nil
@@ -629,12 +649,20 @@ module LZ4
               return dest
             end
           end
+
+          # NOTE: StringIO を用いている理由について
+          #       ruby-2.1 で String#slice 系を使って新しい文字列を生成すると、ヒープ領域の確保量が㌧でもない状況になる。
+          #       StringIO#read に読み込みバッファを与えることで、この問題を軽減している。
+
+          @buf ||= StringIO.new
+          @buf.string = w
         end
 
-        dest << @buf.slice!(0, size)
-        size -= dest.bytesize
-        return dest unless size > 0
-      end
+        dest << @buf.read(size, @slicebuf)
+        size -= @slicebuf.bytesize
+      end while size > 0
+
+      dest
     end
 
     private
@@ -645,9 +673,14 @@ module LZ4
       iscomp = (flags >> 31) == 0 ? true : false
       blocksize = flags & 0x7fffffff
       return nil unless blocksize > 0
-      w = @io.read(blocksize)
-      raise IOError, "can not read block (readsize=#{w.bytesize}, needsize=#{blocksize} (#{"0x%x" % blocksize}))" unless w.bytesize == blocksize
-      w = @decoder.(w) if iscomp
+      unless blocksize <= @blockmaximum
+        raise LZ4::Error, "block size is too big (blocksize is #{blocksize}, but blockmaximum is #{@blockmaximum}. may have damaged)."
+      end
+      w = @io.read(blocksize, @readbuf)
+      unless w.bytesize == blocksize
+        raise LZ4::Error, "can not read block (readsize=#{w.bytesize}, needsize=#{blocksize} (#{"0x%x" % blocksize}))"
+      end
+      w = @decoder.(w, @blockmaximum, @decodebuf) if iscomp
       @io.read(4) if @blockchecksum # TODO: IMPLEMENT ME! compare checksum
       w
     end

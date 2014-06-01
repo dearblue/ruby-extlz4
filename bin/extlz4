@@ -1,15 +1,15 @@
 #!ruby
 #vim: set fileencoding:utf-8
 
-# AUTHOR: dearblue <dearblue@sourceforge.co.jp>
+# AUTHOR: dearblue <dearblue@users.sourceforge.co.jp>
 # Only this program is usable as public domain software.
 
 require "extlz4"
 require "optparse"
 
-progname = File.basename(__FILE__)
+PROGNAME = File.basename(__FILE__)
 opt = OptionParser.new(<<-EOS, 8, "  ")
-Usage: #{progname} [option]... [file]...
+Usage: #{PROGNAME} [option]... [file]...
 
   This program is likely lz4-cli. Reinventing the wheel.
 EOS
@@ -72,27 +72,59 @@ streamchecksum = true
 opt.on("-Sx", "disable stream checksum (default: enabled)", %w(x)) { streamchecksum = false }
 opt.on("-V", "display program version") {
   puts <<-EOS
-#{progname}: extlz4-cli program version 0.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
+#{PROGNAME}: extlz4-cli program version 0.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
   EOS
 
   exit 0
 }
 
+opt.separator <<EOS
+
+temporary special operation:
+EOS
+opt.on("--fix-extlz4-0.1-bug", "fix corrupted lz4 stream file for encoded by extlz4-0.1") { mode = :fix_extlz4_0_1_bug }
+
 begin
   opt.parse!
 rescue OptionParser::InvalidOption, OptionParser::InvalidArgument
   $stderr.puts <<-EOS
-#{progname}: #{$!}
-        enter ``#{progname} --help'' to print help.
+#{PROGNAME}: #{$!}
+        enter ``#{PROGNAME} --help'' to print help.
   EOS
   exit 1
 end
 
+def file_operation(outdir, infile, defaultoutfile, outstdout, forceoverwrite, keepfile)
+  case
+  when outstdout
+    outfile = $stdout.binmode
+  when infile == defaultoutfile
+    $stderr.puts "#{PROGNAME}: out file name is same as in file - #{infile}"
+  else
+    outfile = defaultoutfile
+    outfile = File.join(outdir, File.basename(outfile)) if outdir
+    if !forceoverwrite && File.exist?(outfile)
+      $stderr.puts "#{PROGNAME}: file exists - #{outfile}. (with ``-f'' switch to overwrite)"
+      return false
+    end
+  end
+
+  yield(infile, outfile)
+
+  if !outstdout
+    t = File.mtime(infile)
+    File.utime(t, t, outfile)
+    File.unlink(infile) if !keepfile
+  end
+
+  true
+end  
+
 if ARGV.empty?
-  if $stdout.tty? && !forceoverwrite && mode != :decode
+  if $stdout.tty? && !forceoverwrite && mode != :decode && mode != :test
     $stderr.puts <<-EOS
-#{progname}: not written to terminal. use ``-f'' to force encode.
-\tor enter ``#{progname} --help'' to print help.
+#{PROGNAME}: not written to terminal. use ``-f'' to force encode.
+\tor enter ``#{PROGNAME} --help'' to print help.
     EOS
     exit 1
   end
@@ -101,8 +133,11 @@ if ARGV.empty?
   $stdout.binmode
 
   case mode
-  when 0 .. 9, nil
-    LZ4.encode_file($stdin, $stdout, level)
+  when :encode, nil
+    LZ4.encode_file($stdin, $stdout, level,
+                    block_dependency: blockdep,
+                    block_checksum: blockchecksum,
+                    stream_checksum: streamchecksum)
   when :decode
     LZ4.decode_file($stdin, $stdout)
   when :test
@@ -114,52 +149,41 @@ if ARGV.empty?
   exit 0
 else
   ARGV.each do |file|
+    file = file.gsub(File::ALT_SEPARATOR, File::SEPARATOR) if File::ALT_SEPARATOR
     begin
       case
-      when mode == :decode || (mode.nil? && file =~ /\.lz4$/)
-        if outstdout
-          outfile = $stdout.binmode
-        else
-          outfile = File.basename(file, ".lz4")
-          outfile = File.join(outdir, File.basename(outfile)) if outdir
-          if !forceoverwrite && File.exist?(outfile)
-            $stderr.puts "#{progname}: file exists - #{outfile}. (with ``-f'' switch to overwrite)"
-            next
-          end
-        end
-        LZ4.decode_file(file, outfile)
-        if !outstdout
-          t = File.mtime(file)
-          File.utime(t, t, outfile)
-          File.unlink(file) if !keepfile
+      when mode == :decode || (mode.nil? && file =~ /\.lz4$/i)
+        file_operation(outdir, file, file.sub(/\.lz4$/i, ""), outstdout, forceoverwrite, keepfile) do |infile, outfile|
+          LZ4.decode_file(infile, outfile)
         end
       when mode == :encode || mode.nil?
-        if outstdout
-          outfile = $stdout.binmode
-        else
-          outfile = file + ".lz4"
-          outfile = File.join(outdir, File.basename(outfile)) if outdir
-          if !forceoverwrite && File.exist?(outfile)
-            $stderr.puts "#{progname}: file exists - #{outfile}. (with ``-f'' switch to overwrite)"
-            next
-          end
-        end
-        LZ4.encode_file(file, outfile, level,
-                        block_dependency: blockdep,
-                        block_checksum: blockchecksum,
-                        stream_checksum: streamchecksum)
-        if !outstdout
-          t = File.mtime(file)
-          File.utime(t, t, outfile)
-          File.unlink(file) if !keepfile
+        file_operation(outdir, file, file + ".lz4", outstdout, forceoverwrite, keepfile) do |infile, outfile|
+          LZ4.encode_file(infile, outfile, level,
+                          block_dependency: blockdep,
+                          block_checksum: blockchecksum,
+                          stream_checksum: streamchecksum)
         end
       when mode == :test
         LZ4.test_file(file)
+      when mode == :fix_extlz4_0_1_bug
+        outname = file.sub(/(?<=#{File::SEPARATOR})(?=[^#{File::SEPARATOR}]+$)|^(?=[^#{File::SEPARATOR}]+$)/, "fixed-")
+        file_operation(outdir, file, outname, outstdout, forceoverwrite, true) do |infile, outfile|
+          require "extlz4/fix-0.1bug.rb"
+          if verbose > 0
+            $stderr.puts "#{PROGNAME}: correcting lz4 file - #{file}"
+          end
+          if verbose > 1
+            outinfo = ->(mesg, offset, total, *etc) do
+              $stderr.puts "#{mesg} (at #{offset} of #{total})"
+            end
+          end
+          LZ4.fix_extlz4_0_1_bug(infile, outfile, &outinfo)
+        end
       else
-        $stderr.puts "#{progname}: mode error - #{mode}"
+        $stderr.puts "#{PROGNAME}: mode error - #{mode}"
       end
     rescue LZ4::Error #, Object
-      $stderr.puts "#{progname}: #{file} - #$! (#{$!.class})"
+      $stderr.puts "#{PROGNAME}: #{file} - #$! (#{$!.class})"
     end
   end
 end

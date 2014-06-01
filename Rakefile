@@ -7,7 +7,7 @@ EMAIL = "dearblue@users.sourceforge.jp"
 WEBSITE = "http://sourceforge.jp/projects/rutsubo/"
 LICENSE = "2-clause BSD License"
 PACKAGE = "extlz4"
-VERSION = "0.1"
+VERSION = "0.1.1"
 SUMMARY = "ruby binding for lz4"
 DESCRIPTION = <<EOS
 Yet another ruby binding for lz4.
@@ -22,6 +22,7 @@ HASEXT = EXTCONF.empty? ? false : true
 SPECFILES = FileList["spec/**/*"]
 BINFILES = FileList["bin/*"]
 LIBFILES = FileList["lib/**/*.rb"]
+TEXTFILES = FileList["{LICENSE,README,CHANGELOG}{,.ja}{,.txt,.rd,.md}"]
 GEMFILE = "#{PACKAGE}-#{VERSION}.gem"
 GEMSPEC = "#{PACKAGE}.gemspec"
 EXTFILES = HASEXT ? FileList["ext/**/*"] : []
@@ -32,7 +33,13 @@ if RUBYSET
   RUBY_VERSIONS = RUBYSET.map { |ruby| [`#{ruby} --disable gem -rrbconfig -e "puts RbConfig::CONFIG['ruby_version']"`.chomp, ruby] }
   SOFILES_SET = RUBY_VERSIONS.map { |(ver, ruby)| ["lib/#{ver}/#{PACKAGE}.so", ruby] }
   SOFILES = SOFILES_SET.map { |(lib, ruby)| lib }
-  PLATFORM_NATIVE = Gem::Platform.local.to_s
+  platforms = RUBYSET.map { |ruby| `#{ruby} -rubygems -e "puts Gem::Platform.local.to_s"`.chomp }
+  platforms.uniq!
+  platforms.compact!
+  unless platforms.size == 1
+    raise "wrong multiple platforms (#{RUBYSET.inspect} => #{platforms.inspect})"
+  end
+  PLATFORM_NATIVE = platforms[0]
   GEMFILE_NATIVE = "#{PACKAGE}-#{VERSION}-#{PLATFORM_NATIVE}.gem"
   GEMSPEC_NATIVE = "#{PACKAGE}-#{PLATFORM_NATIVE}.gemspec"
 else
@@ -49,8 +56,7 @@ SPECSTUB = Gem::Specification.new do |s|
   s.author = AUTHOR
   s.email = EMAIL
   s.executables = BINFILES.map { |n| File.basename n }
-  s.files = FileList["LICENSE{,.txt,.rd,.md},README{,.txt,.rd,.md}"] +
-            FileList["spec/*.rb"] +
+  s.files = TEXTFILES + FileList["spec/*.rb"] +
             BINFILES + EXTCONF + EXTFILES + LIBFILES + SPECFILES
   if HASEXT
     rdocextfiles = FileList["ext/**/*.{h,hh,c,cc,cpp,cxx}"]
@@ -59,10 +65,8 @@ SPECSTUB = Gem::Specification.new do |s|
   else
     rdocextfiles = []
   end
-  s.extra_rdoc_files = FileList["{LICENSE,README}{,.txt,.rd,.md}"] +
-                       LIBFILES + rdocextfiles
+  s.extra_rdoc_files = TEXTFILES + LIBFILES + rdocextfiles
   s.rdoc_options = %w(--charset UTF-8 --main README.md)
-  #s.rdoc_options = %w(--charset UTF-8 --locale ja --main README.md)
   s.has_rdoc = false
   s.required_ruby_version = ">= 2.0"
   s.add_development_dependency "rspec", "~> 2.14"
@@ -83,11 +87,15 @@ task :gemfile => GEMFILE
 
 desc "Make rdoc"
 task :rdoc do
-  sh "rdoc --charset UTF-8 --locale ja --main README.md #{SPECSTUB.extra_rdoc_files.join(" ")}"
+  sh "rdoc --charset UTF-8 --main README.md #{SPECSTUB.extra_rdoc_files.join(" ")}"
 end
 
+desc "launch rspec"
+task :test do
+  sh "rspec spec"
+end
 
-file GEMFILE => [GEMSPEC] + BINFILES + EXTFILES + LIBFILES + SPECFILES do
+file GEMFILE => [GEMSPEC] + BINFILES + EXTFILES + LIBFILES + SPECFILES + TEXTFILES do
   sh "gem build #{GEMSPEC}"
 end
 
@@ -106,7 +114,7 @@ if RUBYSET
   desc "Make native gemfile"
   task :gemfile_native => GEMFILE_NATIVE
 
-  file GEMFILE_NATIVE => [GEMSPEC_NATIVE] + BINFILES + EXTFILES + LIBFILES + SPECFILES + SOFILES do
+  file GEMFILE_NATIVE => [GEMSPEC_NATIVE] + BINFILES + EXTFILES + LIBFILES + SPECFILES + SOFILES + TEXTFILES do
     sh "gem build #{GEMSPEC_NATIVE}"
   end
 
@@ -133,7 +141,7 @@ if RUBYSET
 
     file makefile => [sodir] + EXTCONF do
       cd sodir do
-        sh "#{ruby} ../../ext/extconf.rb"
+        sh "#{ruby} ../../ext/extconf.rb \"--ruby=#{ruby}\""
       end
     end
   end
