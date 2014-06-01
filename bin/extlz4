@@ -72,7 +72,7 @@ streamchecksum = true
 opt.on("-Sx", "disable stream checksum (default: enabled)", %w(x)) { streamchecksum = false }
 opt.on("-V", "display program version") {
   puts <<-EOS
-#{PROGNAME}: extlz4-cli program version 0.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
+#{PROGNAME}: extlz4-cli program version 0.1.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
   EOS
 
   exit 0
@@ -170,7 +170,7 @@ else
         file_operation(outdir, file, outname, outstdout, forceoverwrite, true) do |infile, outfile|
           require "extlz4/fix-0.1bug.rb"
           if verbose > 0
-            $stderr.puts "#{PROGNAME}: correcting lz4 file - #{file}"
+            $stderr.puts "#{PROGNAME}: correcting lz4 file - #{infile} to #{outfile}"
           end
           if verbose > 1
             outinfo = ->(mesg, offset, total, *etc) do
