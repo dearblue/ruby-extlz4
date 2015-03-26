@@ -2,6 +2,7 @@
 
 require "extlz4"
 require "digest"
+require "openssl" # for OpenSSL::Random.random_bytes
 
 if false
 require "tmpdir"
@@ -28,11 +29,10 @@ end
     end
 
     $stderr.print "#{File.basename __FILE__}: generating source data."
-    orderdsrc = 256.times.to_a * 65536 # generate 16 MiB data
+    orderdsrc = "\0" * (16 << 20)
+    (16 << 20).times { |i| orderdsrc.setbyte(i, i) }
     $stderr.print ?.
-    randomsrc = orderdsrc.shuffle.pack("C*").freeze
-    $stderr.print ?.
-    orderdsrc = orderdsrc.pack("C*").freeze
+    randomsrc = OpenSSL::Random.random_bytes(16 << 20).freeze
     $stderr.puts "done"
 
     it "self encode and decode" do

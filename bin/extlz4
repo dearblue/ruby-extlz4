@@ -54,16 +54,13 @@ opt.on("-Cdir", "set output directory") { |dir| outdir = dir }
 blocksize = 7
 blockdep = false
 blockchecksum = false
-opt.separator("  -B#      set block size [4-7] (default: 7)") # merged to "-BX"
-opt.separator("  -BD      set mode to block dependency (improve compression ratio)") # merged to "-BX"
-opt.on("-BX", "enable block checksum (default: disabled)", %w[4 5 6 7 D X]) do |o|
+opt.separator("  -B#      set block size [4-7] (default: 7)") # merged to "-BD"
+opt.on("-BD", "set mode to block dependency (improve compression ratio)", %w[4 5 6 7 D]) do |o|
   case o
   when ?4, ?5, ?6, ?7
     blocksize = o.ord - ?0.ord
   when ?D
     blockdep = true
-  when ?X
-    blockchecksum = true
   else
     0/0
   end
@@ -72,7 +69,7 @@ streamchecksum = true
 opt.on("-Sx", "disable stream checksum (default: enabled)", %w(x)) { streamchecksum = false }
 opt.on("-V", "display program version") {
   puts <<-EOS
-#{PROGNAME}: extlz4-cli program version 0.1.1 (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
+#{PROGNAME}: extlz4-cli program version #{LZ4::VERSION} (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
   EOS
 
   exit 0
@@ -82,7 +79,9 @@ opt.separator <<EOS
 
 temporary special operation:
 EOS
-opt.on("--fix-extlz4-0.1-bug", "fix corrupted lz4 stream file for encoded by extlz4-0.1") { mode = :fix_extlz4_0_1_bug }
+opt.on("--fix-extlz4-0.1-bug",
+       "fix corrupted lz4 stream file for encoded by extlz4-0.1",
+       "this operation required xxhash (`gem install xxhash`)") { mode = :fix_extlz4_0_1_bug }
 
 begin
   opt.parse!
@@ -135,9 +134,8 @@ if ARGV.empty?
   case mode
   when :encode, nil
     LZ4.encode_file($stdin, $stdout, level,
-                    block_dependency: blockdep,
-                    block_checksum: blockchecksum,
-                    stream_checksum: streamchecksum)
+                    blocklink: blockdep,
+                    streamsum: streamchecksum)
   when :decode
     LZ4.decode_file($stdin, $stdout)
   when :test
@@ -159,16 +157,16 @@ else
       when mode == :encode || mode.nil?
         file_operation(outdir, file, file + ".lz4", outstdout, forceoverwrite, keepfile) do |infile, outfile|
           LZ4.encode_file(infile, outfile, level,
-                          block_dependency: blockdep,
-                          block_checksum: blockchecksum,
-                          stream_checksum: streamchecksum)
+                          blocklink: blockdep,
+                          streamsum: streamchecksum)
         end
       when mode == :test
         LZ4.test_file(file)
       when mode == :fix_extlz4_0_1_bug
         outname = file.sub(/(?<=#{File::SEPARATOR})(?=[^#{File::SEPARATOR}]+$)|^(?=[^#{File::SEPARATOR}]+$)/, "fixed-")
         file_operation(outdir, file, outname, outstdout, forceoverwrite, true) do |infile, outfile|
-          require "extlz4/fix-0.1bug.rb"
+          require "extlz4/oldstream"
+          require "extlz4/fix-0.1bug"
           if verbose > 0
             $stderr.puts "#{PROGNAME}: correcting lz4 file - #{infile} to #{outfile}"
           end

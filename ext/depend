@@ -1,1 +1,5 @@
-lz4ext.o: lz4ext.c externals/lz4/lz4.h externals/lz4/lz4hc.h
+extlz4.o: extlz4.c extlz4.h
+frameapi.o: frameapi.c extlz4.h hashargs.h
+hashargs.o: hashargs.c hashargs.h
+rawapi.o: rawapi.c extlz4.h
+rawapi2.o: rawapi2.c extlz4.h

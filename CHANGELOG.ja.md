@@ -1,4 +1,25 @@
 
+# extlz4-0.2 (2015-03-26)
+
+## ファイル構成の変更
+
+* ext/: ext/extlz4.c を複数のファイルに分割しました。
+
+## LZ4 ストリームの独自実装から LZ4 Frame API への移行
+
+* lib/extlz4.rb: LZ4.encode、LZ4.decode の引数は互換性を失いました。
+* lib/extlz4/oldstream.rb: 独自実装版は LZ4::StreamEncoder、LZ4::StreamDecoder のまま残されました。
+    これ以上保守されませんし、将来的にこのクラスは廃止されます。
+    利用する場合は ``require "extlz4/oldstream"`` とする必要があります。
+
+## LZ4 streaming API に対する更新
+
+* ext/: ``LZ4_create()`` 系から ``LZ4_createStream()`` 系の API に移行しました。
+* ext/: ``LZ4_decompress_safe_withPrefix64k()`` から ``LZ4_createStreamDecode()`` 系の API に移行しました。
+* ext/: ``LZ4::RawStreamEncoder`` が ``LZ4::RawEncoder`` になりました。
+* ext/: ``LZ4::RawStreamDecoder`` が ``LZ4::RawDecoder`` になりました。
+
+
 # extlz4-0.1.1 (2014-06-01)
 
 ## 不具合の修正
