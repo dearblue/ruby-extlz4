@@ -42,8 +42,6 @@ Init_extlz4(void)
 {
     mLZ4 = rb_define_module("LZ4");
 
-    rb_define_const(mLZ4, "LZ4", mLZ4);
-
     /*
      * Document-const: LZ4::LIBVERSION
      *
@@ -66,6 +64,6 @@ Init_extlz4(void)
 
     eError = rb_define_class_under(mLZ4, "Error", rb_eRuntimeError);
 
-    extlz4_init_rawapi();
+    extlz4_init_blockapi();
     extlz4_init_frameapi();
 }

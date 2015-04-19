@@ -8,8 +8,11 @@
 #     dearblue <dearblue@users.sourceforce.jp>
 #
 
-require "extlz4"
+require_relative "../extlz4"
 require "stringio"
+
+require "rubygems"
+gem "xxhash", "~> 0.3"
 require "xxhash"
 
 module LZ4
@@ -178,7 +181,7 @@ module LZ4
         header << desc
         header << [streamsize].pack("Q<") if streamsize
         header << [predictid].pack("V") if predictid
-        header << [XXhash32.digest(desc) >> 8].pack("C")
+        header << [XXhash.xxh32(desc) >> 8].pack("C")
       end
     end
 
@@ -228,7 +231,7 @@ module LZ4
     def initialize(io, level, blocksize, block_dependency,
                    block_checksum, stream_checksum)
       @block_checksum = !!block_checksum
-      @stream_checksum = XXhash32.new if stream_checksum
+      @stream_checksum = XXhash::XXhashInternal::StreamingHash32.new(0) if stream_checksum
 
       @blocksize = BLOCK_MAXIMUM_SIZES[blocksize]
       raise ArgumentError, "wrong blocksize (#{blocksize})" unless @blocksize
@@ -256,8 +259,8 @@ module LZ4
       desc = [sd, bd].pack("CC")
       header << desc
       # TODO: header << [stream_size].pack("Q<") if stream_size
-      # TODO: header << [XXhash32.digest(predict)].pack("V") if predict # preset dictionary
-      header << [XXhash32.digest(desc) >> 8].pack("C")
+      # TODO: header << [XXhash.xxh32(predict)].pack("V") if predict # preset dictionary
+      header << [XXhash.xxh32(desc) >> 8].pack("C")
       @io << header
     end
 
@@ -312,10 +315,10 @@ module LZ4
     def get_encoder(level, block_dependency)
       workencbuf = "".force_encoding(Encoding::BINARY)
       if block_dependency
-        streamencoder = LZ4::RawStreamEncoder.new(@blocksize, level)
-        ->(src) { streamencoder.update(level, src, workencbuf) }
+        streamencoder = LZ4::BlockEncoder.new(level)
+        ->(src) { streamencoder.update(src, workencbuf) }
       else
-        ->(src) { LZ4.raw_encode(level, src, workencbuf) }
+        ->(src) { LZ4.block_encode(level, src, workencbuf) }
       end
     end
 
@@ -333,7 +336,7 @@ module LZ4
       end
 
       if @block_checksum
-        @io << [XXhash32.digest(w)].pack("V")
+        @io << [XXhash.xxh32(w)].pack("V")
       end
       @buf.clear
     end
@@ -381,9 +384,9 @@ module LZ4
         headerchecksum = io.getbyte
 
         if @blockindependence
-          @decoder = LZ4.method(:raw_decode)
+          @decoder = LZ4.method(:block_decode)
         else
-          @decoder = LZ4::RawStreamDecoder.new.method(:update)
+          @decoder = LZ4::BlockDecoder.new.method(:update)
         end
       when MAGIC_NUMBER_LEGACY
         @version = -1
@@ -393,7 +396,7 @@ module LZ4
         @blockmaximum = 1 << 23 # 8 MiB
         @streamsize = nil
         @presetdict = nil
-        @decoder = LZ4.method(:raw_decode)
+        @decoder = LZ4.method(:block_decode)
       else
         raise Error, "stream header error - wrong magic number"
       end

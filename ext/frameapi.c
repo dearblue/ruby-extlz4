@@ -1,7 +1,9 @@
 #include "extlz4.h"
+#include <stdarg.h>
 #include <lz4frame.h>
 #include <lz4frame_static.h>
 #include "hashargs.h"
+#include <ruby/thread.h>
 
 static ID id_op_lshift;
 static ID id_read;
@@ -32,13 +34,75 @@ aux_lz4f_check_error(size_t err)
     }
 }
 
+static inline void *
+aux_thread_call_without_gvl(void *(*func)(void *), void (*cancel)(void *), ...)
+{
+    va_list va1, va2;
+    va_start(va1, cancel);
+    va_start(va2, cancel);
+    void *s = rb_thread_call_without_gvl(func, &va1, cancel, &va2);
+    va_end(va1);
+    va_end(va2);
+    return s;
+}
+
+static void *
+aux_LZ4F_compressUpdate_nogvl(void *pp)
+{
+    va_list *p = pp;
+    LZ4F_compressionContext_t *encoder = va_arg(*p, LZ4F_compressionContext_t *);
+    char *dest = va_arg(*p, char *);
+    size_t destsize = va_arg(*p, size_t);
+    const char *src = va_arg(*p, const char *);
+    size_t srcsize = va_arg(*p, size_t);
+    LZ4F_compressOptions_t *opts = va_arg(*p, LZ4F_compressOptions_t *);
+
+    return (void *)LZ4F_compressUpdate(encoder, dest, destsize, src, srcsize, opts);
+}
+
+static size_t
+aux_LZ4F_compressUpdate(LZ4F_compressionContext_t *encoder,
+        char *dest, size_t destsize, const char *src, size_t srcsize,
+        LZ4F_compressOptions_t *opts)
+{
+    return (size_t)aux_thread_call_without_gvl(aux_LZ4F_compressUpdate_nogvl, NULL,
+            encoder, dest, destsize, src, srcsize, opts);
+}
+
+static int
+aux_frame_level(const LZ4F_preferences_t *p)
+{
+    return p->compressionLevel;
+}
+
+static int
+aux_frame_blocksize(const LZ4F_frameInfo_t *info)
+{
+    int bsid = info->blockSizeID;
+    if (bsid == 0) {
+        bsid = max4MB;
+    }
+    return 1 << (bsid * 2 + 8);
+}
+
+static int
+aux_frame_blocklink(const LZ4F_frameInfo_t *info)
+{
+    return info->blockMode == blockLinked;
+}
+
+static int
+aux_frame_checksum(const LZ4F_frameInfo_t *info)
+{
+    return info->contentChecksumFlag == contentChecksumEnabled;
+}
+
 /*** class LZ4::Encoder ***/
 
 struct encoder
 {
     VALUE outport;
     VALUE workbuf;
-    VALUE predict;
     LZ4F_preferences_t prefs;
     LZ4F_compressionContext_t encoder;
 };
@@ -50,7 +114,6 @@ encoder_mark(void *pp)
         struct encoder *p = pp;
         rb_gc_mark(p->outport);
         rb_gc_mark(p->workbuf);
-        rb_gc_mark(p->predict);
     }
 }
 
@@ -79,41 +142,76 @@ fenc_alloc(VALUE mod)
     VALUE obj = TypedData_Make_Struct(mod, struct encoder, &encoder_type, p);
     p->outport = Qnil;
     p->workbuf = Qnil;
-    p->predict = Qnil;
     return obj;
+}
+
+static inline int
+fenc_init_args_blocksize(size_t size)
+{
+    if (size == 0) {
+        return max4MB;
+    } else if (size <= 64 * 1024) {
+        return max64KB;
+    } else if (size <= 256 * 1024) {
+        return max256KB;
+    } else if (size <= 1 * 1024 * 1024) {
+        return max1MB;
+    } else {
+        return max4MB;
+    }
 }
 
 static inline void
 fenc_init_args(int argc, VALUE argv[], VALUE *outport, LZ4F_preferences_t *prefs)
 {
     VALUE level, opts;
-    rb_scan_args(argc, argv, "11:", outport, &level, &opts);
+    rb_scan_args(argc, argv, "02:", outport, &level, &opts);
+
+    memset(prefs, 0, sizeof(*prefs));
+
+    if (NIL_P(*outport)) {
+        *outport = rb_str_buf_new(0);
+    }
+
+    prefs->compressionLevel = NIL_P(level) ? 1 : NUM2INT(level);
 
     if (!NIL_P(opts)) {
-        VALUE blocklink, streamsum;
+        VALUE blocksize, blocklink, checksum;
         RBX_SCANHASH(opts, Qnil,
-                RBX_SCANHASH_ARGS("level", &level, INT2FIX(1)),
+                RBX_SCANHASH_ARGS("blocksize", &blocksize, Qnil),
                 RBX_SCANHASH_ARGS("blocklink", &blocklink, Qfalse),
-                RBX_SCANHASH_ARGS("streamsum", &streamsum, Qtrue));
-        memset(prefs, 0, sizeof(*prefs));
-        // prefs->autoFlush = ????;
-        //prefs->frameInfo.blockSizeID = ; /* max64KB, max256KB, max1MB, max4MB ; 0 == default */
+                RBX_SCANHASH_ARGS("checksum", &checksum, Qtrue));
+        // prefs->autoFlush = TODO;
+        prefs->frameInfo.blockSizeID = NIL_P(blocksize) ? max4MB : fenc_init_args_blocksize(NUM2INT(blocksize));
         prefs->frameInfo.blockMode = RTEST(blocklink) ? blockLinked : blockIndependent;
-        prefs->frameInfo.contentChecksumFlag = RTEST(streamsum) ? contentChecksumEnabled : noContentChecksum;
+        prefs->frameInfo.contentChecksumFlag = RTEST(checksum) ? contentChecksumEnabled : noContentChecksum;
     } else {
-        memset(prefs, 0, sizeof(*prefs));
+        prefs->frameInfo.blockSizeID = max4MB;
+        prefs->frameInfo.blockMode = blockIndependent;
+        prefs->frameInfo.contentChecksumFlag = contentChecksumEnabled;
     }
-    prefs->compressionLevel = NUM2INT(level);
+}
+
+static struct encoder *
+getencoderp(VALUE enc)
+{
+    return getrefp(enc, &encoder_type);
+}
+
+static struct encoder *
+getencoder(VALUE enc)
+{
+    return getref(enc, &encoder_type);
 }
 
 /*
  * call-seq:
- *  initialize(outport, level = 1, blocklinked: false, streamsum: true)
+ *  initialize(outport = "".b, level = 1, blocksize: nil, blocklink: false, checksum: true)
  */
 static VALUE
 fenc_init(int argc, VALUE argv[], VALUE enc)
 {
-    struct encoder *p = getref(enc, &encoder_type);
+    struct encoder *p = getencoder(enc);
     VALUE outport;
     fenc_init_args(argc, argv, &outport, &p->prefs);
 
@@ -126,6 +224,7 @@ fenc_init(int argc, VALUE argv[], VALUE enc)
     rb_str_set_len(p->workbuf, s);
     rb_funcall2(outport, id_op_lshift, 1, &p->workbuf);
     p->outport = outport;
+    rb_obj_infect(p->outport, enc);
     return enc;
 }
 
@@ -141,7 +240,7 @@ fenc_update(struct encoder *p, VALUE src, LZ4F_compressOptions_t *opts)
         size_t destsize = LZ4F_compressBound(srcsize, &p->prefs);
         aux_str_reserve(p->workbuf, destsize);
         char *destp = RSTRING_PTR(p->workbuf);
-        size_t size = LZ4F_compressUpdate(p->encoder, destp, destsize, srcp, srcsize, opts);
+        size_t size = aux_LZ4F_compressUpdate(p->encoder, destp, destsize, srcp, srcsize, opts);
         aux_lz4f_check_error(size);
         rb_str_set_len(p->workbuf, size);
         rb_funcall2(p->outport, id_op_lshift, 1, &p->workbuf);
@@ -156,9 +255,12 @@ fenc_update(struct encoder *p, VALUE src, LZ4F_compressOptions_t *opts)
 static VALUE
 fenc_write(int argc, VALUE argv[], VALUE enc)
 {
-    struct encoder *p = getref(enc, &encoder_type);
+    struct encoder *p = getencoder(enc);
     VALUE src;
     rb_scan_args(argc, argv, "1", &src);
+    rb_obj_infect(enc, src);
+    rb_obj_infect(enc, p->workbuf);
+    rb_obj_infect(p->outport, enc);
     fenc_update(p, src, NULL);
     return enc;
 }
@@ -166,21 +268,22 @@ fenc_write(int argc, VALUE argv[], VALUE enc)
 static VALUE
 fenc_push(VALUE enc, VALUE src)
 {
-    struct encoder *p = getref(enc, &encoder_type);
+    struct encoder *p = getencoder(enc);
+    rb_obj_infect(enc, src);
+    rb_obj_infect(enc, p->workbuf);
+    rb_obj_infect(p->outport, enc);
     fenc_update(p, src, NULL);
     return enc;
 }
 
 static VALUE
-fenc_flush(int argc, VALUE argv[], VALUE enc)
+fenc_flush(VALUE enc)
 {
-    struct encoder *p = getref(enc, &encoder_type);
+    struct encoder *p = getencoder(enc);
     size_t destsize = AUX_LZ4F_BLOCK_SIZE_MAX + AUX_LZ4F_FINISH_SIZE;
     aux_str_reserve(p->workbuf, destsize);
-    //rb_str_locktmp(p->workbuf);
     char *destp = RSTRING_PTR(p->workbuf);
     size_t size = LZ4F_flush(p->encoder, destp, destsize, NULL);
-    //rb_str_unlocktmp(p->workbuf);
     aux_lz4f_check_error(size);
     rb_str_set_len(p->workbuf, size);
     rb_funcall2(p->outport, id_op_lshift, 1, &p->workbuf);
@@ -191,18 +294,75 @@ fenc_flush(int argc, VALUE argv[], VALUE enc)
 static VALUE
 fenc_close(VALUE enc)
 {
-    struct encoder *p = getref(enc, &encoder_type);
+    struct encoder *p = getencoder(enc);
     size_t destsize = AUX_LZ4F_BLOCK_SIZE_MAX + AUX_LZ4F_FINISH_SIZE;
     aux_str_reserve(p->workbuf, destsize);
-    //rb_str_locktmp(p->workbuf);
     char *destp = RSTRING_PTR(p->workbuf);
     size_t size = LZ4F_compressEnd(p->encoder, destp, destsize, NULL);
-    //rb_str_unlocktmp(p->workbuf);
     aux_lz4f_check_error(size);
     rb_str_set_len(p->workbuf, size);
     rb_funcall2(p->outport, id_op_lshift, 1, &p->workbuf);
 
     return enc;
+}
+
+static VALUE
+fenc_getoutport(VALUE enc)
+{
+    return getencoder(enc)->outport;
+}
+
+static VALUE
+fenc_setoutport(VALUE enc, VALUE outport)
+{
+    return getencoder(enc)->outport = outport;
+}
+
+static VALUE
+fenc_prefs_level(VALUE enc)
+{
+    return INT2NUM(aux_frame_level(&getencoder(enc)->prefs));
+}
+
+static int
+fenc_blocksize(struct encoder *p)
+{
+    return aux_frame_blocksize(&p->prefs.frameInfo);
+}
+
+static VALUE
+fenc_prefs_blocksize(VALUE enc)
+{
+    return INT2NUM(fenc_blocksize(getencoder(enc)));
+}
+
+static VALUE
+fenc_prefs_blocklink(VALUE enc)
+{
+    return aux_frame_blocklink(&getencoder(enc)->prefs.frameInfo) ? Qtrue : Qfalse;
+}
+
+static VALUE
+fenc_prefs_checksum(VALUE enc)
+{
+    return aux_frame_checksum(&getencoder(enc)->prefs.frameInfo) ? Qtrue : Qfalse;
+}
+
+static VALUE
+fenc_inspect(VALUE enc)
+{
+    struct encoder *p = getencoderp(enc);
+    if (p) {
+        return rb_sprintf("#<%s:%p outport=#<%s:%p>, level=%d, blocksize=%d, blocklink=%s, checksum=%s>",
+                rb_obj_classname(enc), (void *)enc,
+                rb_obj_classname(p->outport), (void *)p->outport,
+                p->prefs.compressionLevel, fenc_blocksize(p),
+                aux_frame_blocklink(&p->prefs.frameInfo) ? "true" : "false",
+                aux_frame_checksum(&p->prefs.frameInfo) ? "true" : "false");
+    } else {
+        return rb_sprintf("#<%s:%p **INVALID REFERENCE**>",
+                rb_obj_classname(enc), (void *)enc);
+    }
 }
 
 /*** class LZ4::Decoder ***/
@@ -211,10 +371,11 @@ struct decoder
 {
     VALUE inport;
     VALUE readbuf;   /* read buffer from inport */
-    VALUE blockbuf; /* decoded lz4 frame block buffer */
-    VALUE predict;   /* preset dictionary (OBSOLUTE) */ /* FIXME: DELETE ME */
-    size_t readsize; /* readblocksize in initialize */
-    size_t status; /* status code of LZ4F_decompress */
+    char *blockbuf; /* decoded lz4 frame block buffer */
+    const char *blockend; /* end of blockbuf */
+    char *blockhead;
+    const char *blocktail;
+    size_t status;   /* status code of LZ4F_decompress */
     LZ4F_frameInfo_t info;
     LZ4F_decompressionContext_t decoder;
 };
@@ -226,8 +387,6 @@ decoder_mark(void *pp)
         struct decoder *p = pp;
         rb_gc_mark(p->inport);
         rb_gc_mark(p->readbuf);
-        rb_gc_mark(p->blockbuf);
-        rb_gc_mark(p->predict);
     }
 }
 
@@ -238,6 +397,9 @@ decoder_free(void *pp)
         struct decoder *p = pp;
         if (p->decoder) {
             LZ4F_freeDecompressionContext(p->decoder);
+        }
+        if (p->blockbuf) {
+            free(p->blockbuf);
         }
     }
 }
@@ -256,10 +418,20 @@ fdec_alloc(VALUE mod)
     VALUE obj = TypedData_Make_Struct(mod, struct decoder, &decoder_type, p);
     p->inport = Qnil;
     p->readbuf = Qnil;
-    p->blockbuf = Qnil;
-    p->predict = Qnil;
-    p->status = ~(size_t)0;
+    p->status = 0;
     return obj;
+}
+
+static struct decoder *
+getdecoderp(VALUE dec)
+{
+    return getrefp(dec, &decoder_type);
+}
+
+static struct decoder *
+getdecoder(VALUE dec)
+{
+    return getref(dec, &decoder_type);
 }
 
 static inline VALUE
@@ -272,7 +444,7 @@ aux_read(VALUE obj, size_t size, VALUE buf)
     } else {
 //fprintf(stderr, "%s:%d:%s: buffer.size=%d\n", __FILE__, __LINE__, __func__, (int)RSTRING_LEN(buf));
         if (RSTRING_LEN(buf) > size) {
-            rb_raise(rb_eRuntimeError, "read buffer is too big (%d, but expected to %d)", (int)RSTRING_LEN(buf), (int)size);
+            rb_raise(rb_eRuntimeError, "most read (%d, but expected to %d)", (int)RSTRING_LEN(buf), (int)size);
         }
         return buf;
     }
@@ -290,15 +462,14 @@ aux_read(VALUE obj, size_t size, VALUE buf)
 static VALUE
 fdec_init(int argc, VALUE argv[], VALUE dec)
 {
-    struct decoder *p = getref(dec, &decoder_type);
-    VALUE inport, readblocksize;
+    struct decoder *p = getdecoder(dec);
+    VALUE inport;
+    //VALUE readblocksize;
     rb_scan_args(argc, argv, "1", &inport);
     LZ4F_errorCode_t err = LZ4F_createDecompressionContext(&p->decoder, LZ4F_VERSION);
     aux_lz4f_check_error(err);
+    rb_obj_infect(dec, inport);
     p->inport = inport;
-    //p->readsize = NIL_P(readblocksize) ? WORK_BUFFER_SIZE : NUM2INT(readblocksize);
-    p->readsize = 0;
-    p->blockbuf = rb_str_buf_new(AUX_LZ4F_BLOCK_SIZE_MAX);
     p->readbuf = rb_str_buf_new(0);
     char *readp;
     size_t readsize;
@@ -321,6 +492,10 @@ fdec_init(int argc, VALUE argv[], VALUE dec)
     p->status = s;
     s = LZ4F_getFrameInfo(p->decoder, &p->info, NULL, &zero);
     aux_lz4f_check_error(s);
+
+    size_t size = 1 << (p->info.blockSizeID * 2 + 8);
+    p->blockbuf = ALLOC_N(char, size);
+    p->blockend = p->blockbuf + size;
 
     return dec;
 }
@@ -349,29 +524,30 @@ fdec_read_args(int argc, VALUE argv[], size_t *size, VALUE *buf)
     }
 }
 
-static void
-fdec_read_fetch(char **blockp, size_t *blocksize, struct decoder *p)
+static size_t
+fdec_read_fetch(VALUE dec, struct decoder *p)
 {
-    RSTRING_GETMEM(p->blockbuf, *blockp, *blocksize);
-    if (*blocksize > 0) {
-        return;
-    }
-
-    while (*blocksize <= 0 && p->status != 0) {
-        aux_read(p->inport, p->status, p->readbuf);
+    size_t blocksize = p->blocktail - p->blockhead;
+    while (blocksize <= 0 && p->status != 0) {
+        VALUE v = aux_read(p->inport, p->status, p->readbuf);
         char *readp;
         size_t readsize;
-        aux_str_getmem(p->readbuf, &readp, &readsize);
+        aux_str_getmem(v, &readp, &readsize);
         if (!readp) {
             rb_raise(eError,
                     "read error - encounted invalid EOF - #<%s:%p>",
                     rb_obj_classname(p->inport), (void *)p->inport);
         }
 
-        *blocksize = rb_str_capacity(p->blockbuf);
-        p->status = LZ4F_decompress(p->decoder, *blockp, blocksize, readp, &readsize, NULL);
+        rb_obj_infect(dec, v);
+        blocksize = p->blockend - p->blockbuf;
+        p->status = LZ4F_decompress(p->decoder, p->blockbuf, &blocksize, readp, &readsize, NULL);
         aux_lz4f_check_error(p->status);
+        p->blockhead = p->blockbuf;
+        p->blocktail = p->blockhead + blocksize;
     }
+
+    return blocksize;
 }
 
 /*
@@ -383,11 +559,12 @@ fdec_read_fetch(char **blockp, size_t *blocksize, struct decoder *p)
 static VALUE
 fdec_read(int argc, VALUE argv[], VALUE dec)
 {
-    struct decoder *p = getref(dec, &decoder_type);
+    struct decoder *p = getdecoder(dec);
     size_t size;
     VALUE dest;
     fdec_read_args(argc, argv, &size, &dest);
     if (size == 0) {
+        rb_obj_infect(dest, dec);
         return dest;
     }
 
@@ -395,21 +572,17 @@ fdec_read(int argc, VALUE argv[], VALUE dec)
         return Qnil;
     }
 
-    rb_str_modify(p->blockbuf);
-
     do {
-        char *blockp;
-        size_t blocksize;
-        fdec_read_fetch(&blockp, &blocksize, p);
+        size_t blocksize = fdec_read_fetch(dec, p);
+        rb_obj_infect(dest, dec);
 
         if (size < blocksize) {
-            rb_str_buf_cat(dest, blockp, size);
-            rb_str_set_len(p->blockbuf, blocksize);
-            aux_str_drop_bytes(p->blockbuf, size);
-            size = 0;
+            rb_str_buf_cat(dest, p->blockhead, size);
+            p->blockhead += size;
+            break;
         } else {
-            rb_str_buf_cat(dest, blockp, blocksize);
-            rb_str_set_len(p->blockbuf, 0);
+            rb_str_buf_cat(dest, p->blockhead, blocksize);
+            p->blocktail = p->blockhead = NULL;
             size -= blocksize;
         }
     } while (size > 0 && p->status != 0);
@@ -417,10 +590,58 @@ fdec_read(int argc, VALUE argv[], VALUE dec)
     return dest;
 }
 
+/*
+ * call-seq:
+ *  getc -> String | nil
+ *
+ * Read one byte character.
+ */
+static VALUE
+fdec_getc(VALUE dec)
+{
+    struct decoder *p = getdecoder(dec);
+
+    for (;;) {
+        if (p->status == 0) {
+            return Qnil;
+        }
+        size_t blocksize = fdec_read_fetch(dec, p);
+        if (blocksize != 0) {
+            char ch = (uint8_t)*p->blockhead;
+            p->blockhead ++;
+            return rb_str_new(&ch, 1);
+        }
+    }
+}
+
+/*
+ * call-seq:
+ *  getbyte -> Integer | nil
+ *
+ * Read one byte code integer.
+ */
+static VALUE
+fdec_getbyte(VALUE dec)
+{
+    struct decoder *p = getdecoder(dec);
+
+    for (;;) {
+        if (p->status == 0) {
+            return Qnil;
+        }
+        size_t blocksize = fdec_read_fetch(dec, p);
+        if (blocksize != 0) {
+            int ch = (uint8_t)*p->blockhead;
+            p->blockhead ++;
+            return INT2FIX(ch);
+        }
+    }
+}
+
 static VALUE
 fdec_close(VALUE dec)
 {
-    struct decoder *p = getref(dec, &decoder_type);
+    struct decoder *p = getdecoder(dec);
     p->status = 0;
     // TODO: destroy decoder
     return dec;
@@ -429,11 +650,58 @@ fdec_close(VALUE dec)
 static VALUE
 fdec_eof(VALUE dec)
 {
-    struct decoder *p = getref(dec, &decoder_type);
+    struct decoder *p = getdecoder(dec);
     if (p->status == 0) {
         return Qtrue;
     } else {
         return Qfalse;
+    }
+}
+
+static VALUE
+fdec_inport(VALUE dec)
+{
+    return getdecoder(dec)->inport;
+}
+
+static int
+fdec_blocksize(struct decoder *p)
+{
+    return aux_frame_blocksize(&p->info);
+}
+
+static VALUE
+fdec_prefs_blocksize(VALUE dec)
+{
+    return INT2NUM(fdec_blocksize(getdecoder(dec)));
+}
+
+static VALUE
+fdec_prefs_blocklink(VALUE dec)
+{
+    return aux_frame_blocklink(&getdecoder(dec)->info) ? Qtrue : Qfalse;
+}
+
+static VALUE
+fdec_prefs_checksum(VALUE dec)
+{
+    return aux_frame_checksum(&getdecoder(dec)->info) ? Qtrue : Qfalse;
+}
+
+static VALUE
+fdec_inspect(VALUE dec)
+{
+    struct decoder *p = getdecoderp(dec);
+    if (p) {
+        return rb_sprintf("#<%s:%p inport=#<%s:%p>, blocksize=%d, blocklink=%s, checksum=%s>",
+                rb_obj_classname(dec), (void *)dec,
+                rb_obj_classname(p->inport), (void *)p->inport,
+                fdec_blocksize(p),
+                aux_frame_blocklink(&p->info) ? "true" : "false",
+                aux_frame_checksum(&p->info) ? "true" : "false");
+    } else {
+        return rb_sprintf("#<%s:%p **INVALID REFERENCE**>",
+                rb_obj_classname(dec), (void *)dec);
     }
 }
 
@@ -450,14 +718,30 @@ extlz4_init_frameapi(void)
     rb_define_method(cEncoder, "initialize", RUBY_METHOD_FUNC(fenc_init), -1);
     rb_define_method(cEncoder, "write", RUBY_METHOD_FUNC(fenc_write), -1);
     rb_define_method(cEncoder, "<<", RUBY_METHOD_FUNC(fenc_push), 1);
-    rb_define_method(cEncoder, "flush", RUBY_METHOD_FUNC(fenc_flush), -1);
+    rb_define_method(cEncoder, "flush", RUBY_METHOD_FUNC(fenc_flush), 0);
     rb_define_method(cEncoder, "close", RUBY_METHOD_FUNC(fenc_close), 0);
+    rb_define_alias(cEncoder, "finish", "close");
+    rb_define_method(cEncoder, "outport", RUBY_METHOD_FUNC(fenc_getoutport), 0);
+    rb_define_method(cEncoder, "outport=", RUBY_METHOD_FUNC(fenc_setoutport), 1);
+    rb_define_method(cEncoder, "prefs_level", RUBY_METHOD_FUNC(fenc_prefs_level), 0);
+    rb_define_method(cEncoder, "prefs_blocksize", RUBY_METHOD_FUNC(fenc_prefs_blocksize), 0);
+    rb_define_method(cEncoder, "prefs_blocklink", RUBY_METHOD_FUNC(fenc_prefs_blocklink), 0);
+    rb_define_method(cEncoder, "prefs_checksum", RUBY_METHOD_FUNC(fenc_prefs_checksum), 0);
+    rb_define_method(cEncoder, "inspect", RUBY_METHOD_FUNC(fenc_inspect), 0);
 
     VALUE cDecoder = rb_define_class_under(mLZ4, "Decoder", rb_cObject);
     rb_define_alloc_func(cDecoder, fdec_alloc);
     rb_define_method(cDecoder, "initialize", RUBY_METHOD_FUNC(fdec_init), -1);
     rb_define_method(cDecoder, "read", RUBY_METHOD_FUNC(fdec_read), -1);
+    rb_define_method(cDecoder, "getc", RUBY_METHOD_FUNC(fdec_getc), 0);
+    rb_define_method(cDecoder, "getbyte", RUBY_METHOD_FUNC(fdec_getbyte), 0);
     rb_define_method(cDecoder, "close", RUBY_METHOD_FUNC(fdec_close), 0);
+    rb_define_alias(cDecoder, "finish", "close");
     rb_define_method(cDecoder, "eof", RUBY_METHOD_FUNC(fdec_eof), 0);
+    rb_define_method(cDecoder, "inport", RUBY_METHOD_FUNC(fdec_inport), 0);
     rb_define_alias(cDecoder, "eof?", "eof");
+    rb_define_method(cDecoder, "prefs_blocksize", RUBY_METHOD_FUNC(fdec_prefs_blocksize), 0);
+    rb_define_method(cDecoder, "prefs_blocklink", RUBY_METHOD_FUNC(fdec_prefs_blocklink), 0);
+    rb_define_method(cDecoder, "prefs_checksum", RUBY_METHOD_FUNC(fdec_prefs_checksum), 0);
+    rb_define_method(cDecoder, "inspect", RUBY_METHOD_FUNC(fdec_inspect), 0);
 }

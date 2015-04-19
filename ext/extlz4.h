@@ -8,7 +8,7 @@
 extern VALUE mLZ4;      /* module LZ4 */
 extern VALUE eError;    /* class LZ4::Error < ::RuntimeError */
 
-extern void extlz4_init_rawapi(void);
+extern void extlz4_init_blockapi(void);
 extern void extlz4_init_frameapi(void);
 
 #define AUX_FUNCALL(RECV, METHOD, ...)                          \

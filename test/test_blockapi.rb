@@ -1,36 +1,71 @@
 #!ruby
 
 require "test-unit"
-require "extlz4"
 require "openssl" # for OpenSSL::Random.random_bytes
+require "extlz4"
 
-SMALLSIZE = 400
-BIGSIZE = 12000000
+require_relative "sampledata"
 
-SAMPLES = [
-  "",
-  "\0".b * SMALLSIZE,
-  "\0".b * BIGSIZE,
-  "\xaa".b * SMALLSIZE,
-  "\xaa".b * BIGSIZE,
-  OpenSSL::Random.random_bytes(SMALLSIZE),
-  OpenSSL::Random.random_bytes(BIGSIZE),
-]
+class TestBlockAPI < Test::Unit::TestCase
+  SAMPLES.each_pair do |name, data|
+    define_method("test_block_encode_decode_sample:#{name}", -> {
+      assert(data, LZ4.block_decode(LZ4.block_encode(data)))
+    })
+  end
 
-SAMPLES << File.read("/usr/ports/INDEX-10", mode: "rb") rescue nil # if on FreeBSD
-SAMPLES << File.read("/boot/kernel/kernel", mode: "rb") rescue nil # if on FreeBSD
+  def test_block_encode
+    buf = ""
+    assert_kind_of(String, LZ4.block_encode(SAMPLES["\\0 (small size)"]))
+    assert_kind_of(String, LZ4.block_encode(SAMPLES["\\0 (small size)"], 1000))
+    assert_same(buf, LZ4.block_encode(SAMPLES["\\0 (small size)"], buf))
+    assert_same(buf, LZ4.block_encode(SAMPLES["\\0 (small size)"], 1000, buf))
+    assert_same(buf, LZ4.block_encode(nil, SAMPLES["\\0 (small size)"], 1000, buf))
 
-$stderr.puts "%s:%d: prepaired sample data (%d samples)\n" % [__FILE__, __LINE__, SAMPLES.size]
+    # high compression
+    assert_kind_of(String, LZ4.block_encode(0, SAMPLES["\\0 (small size)"]))
+    assert_kind_of(String, LZ4.block_encode(0, SAMPLES["\\0 (small size)"], 1000))
+    assert_same(buf, LZ4.block_encode(0, SAMPLES["\\0 (small size)"], buf))
+    assert_same(buf, LZ4.block_encode(0, SAMPLES["\\0 (small size)"], 1000, buf))
+  end
 
-class TestRawAPI < Test::Unit::TestCase
-  def test_encode_decode
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[0])) == SAMPLES[0] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[2])) == SAMPLES[2] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[3])) == SAMPLES[3] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[4])) == SAMPLES[4] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[5])) == SAMPLES[5] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[6])) == SAMPLES[6] }
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[7])) == SAMPLES[7] } if SAMPLES.size > 7
-    assert { LZ4.raw_decode(LZ4.raw_encode(SAMPLES[8])) == SAMPLES[8] } if SAMPLES.size > 8
+  def test_block_encode_invalid_args
+    src = SAMPLES["\\0 (small size)"]
+    buf = ""
+    assert_raise(ArgumentError) { LZ4.block_encode } # no arguments
+    assert_raise(ArgumentError) { LZ4.block_encode(-1, src) } # wrong level
+    assert_raise(TypeError) { LZ4.block_encode(100) } # source is not string
+    assert_raise(TypeError) { LZ4.block_encode(nil) } # source is not string
+    assert_raise(TypeError) { LZ4.block_encode(:bad_input) } # source is not string
+    assert_raise(TypeError) { LZ4.block_encode(/bad-input/) } # source is not string
+    assert_raise(RuntimeError) { LZ4.block_encode(src, "bad-destbuf".freeze) } # can't modify frozen String
+    assert_raise(LZ4::Error) { LZ4.block_encode(src, 1) } # maxdest is too small
+    assert_raise(LZ4::Error) { LZ4.block_encode(src, 1, buf) } # maxdest is too small
+    assert_raise(TypeError) { LZ4.block_encode(src, "bad-maxsize", "a") } # "bad-maxsize" is not integer
+  end
+
+  def test_block_decode
+    src = LZ4.block_encode(SAMPLES["\\0 (small size)"])
+    buf = ""
+    assert_kind_of(String, LZ4.block_decode(src))
+    assert_kind_of(String, LZ4.block_decode(src, 1000))
+    assert_same(buf, LZ4.block_decode(src, buf))
+    assert_same(buf, LZ4.block_decode(src, 1000, buf))
+  end
+
+  def test_block_decode_invalid_args
+    src = LZ4.block_encode(SAMPLES["\\0 (small size)"])
+    buf = ""
+    assert_raise(ArgumentError) { LZ4.block_decode } # no arguments
+    assert_raise(TypeError) { LZ4.block_decode(-1, src) } # do not given level
+    assert_raise(TypeError) { LZ4.block_decode(100) } # source is not string
+    assert_raise(TypeError) { LZ4.block_decode(nil) } # source is not string
+    assert_raise(TypeError) { LZ4.block_decode(:bad_input) } # source is not string
+    assert_raise(TypeError) { LZ4.block_decode(/bad-input/) } # source is not string
+    assert_raise(RuntimeError) { LZ4.block_decode(src, "bad-destbuf".freeze) } # can't modify frozen String
+    assert_raise(TypeError) { LZ4.block_decode(src, "bad-maxsize", "a") } # "bad-maxsize" is not integer
+
+    src2 = SAMPLES["\\xaa (small size)"]
+    assert_raise(LZ4::Error) { LZ4.block_decode(src2) } # encounted invalid end of sequence
+    assert_raise(LZ4::Error) { LZ4.block_decode(src2, 100000) } # max_dest_size is too small, or data is corrupted
   end
 end

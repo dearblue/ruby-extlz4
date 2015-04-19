@@ -1,23 +1,37 @@
 
-# extlz4-0.2 (2015-03-26)
+# extlz4-0.2 (2015-04-19)
 
-## ファイル構成の変更
+## いくつかの名称の変更
 
-* ext/: ext/extlz4.c を複数のファイルに分割しました。
+  * ストリームをフレーム (frame) に変更しました。
+  * これまで extlz4 において raw\*\*\* と呼んできた名称を block\*\*\* に変更しました。
 
 ## LZ4 ストリームの独自実装から LZ4 Frame API への移行
 
-* lib/extlz4.rb: LZ4.encode、LZ4.decode の引数は互換性を失いました。
-* lib/extlz4/oldstream.rb: 独自実装版は LZ4::StreamEncoder、LZ4::StreamDecoder のまま残されました。
-    これ以上保守されませんし、将来的にこのクラスは廃止されます。
-    利用する場合は ``require "extlz4/oldstream"`` とする必要があります。
+  * LZ4.encode、LZ4.decode の引数は互換性を失いました。
+  * LZ4 Frame API による圧縮・伸長処理を行うためのクラスは
+    LZ4::Encoder と LZ4::Decoder として利用できます。
+  * 独自実装版は LZ4::StreamEncoder、LZ4::StreamDecoder のまま残されました。
+      * ***これらのクラスは将来的に廃止される予定です。***
+      * 利用する場合は ``require "extlz4/oldstream"`` とする必要があります。
+      * ruby gems の xxhash-0.3 を必要とします。
+      * 以前の LZ4.encode は LZ4.encode\_old、LZ4.decode は LZ4.decode\_old
+        として利用できます。
 
-## LZ4 streaming API に対する更新
+## 新しい LZ4 Block Streaming API への移行
 
-* ext/: ``LZ4_create()`` 系から ``LZ4_createStream()`` 系の API に移行しました。
-* ext/: ``LZ4_decompress_safe_withPrefix64k()`` から ``LZ4_createStreamDecode()`` 系の API に移行しました。
-* ext/: ``LZ4::RawStreamEncoder`` が ``LZ4::RawEncoder`` になりました。
-* ext/: ``LZ4::RawStreamDecoder`` が ``LZ4::RawDecoder`` になりました。
+  * ``LZ4_create()`` 系から ``LZ4_createStream()`` 系の API に移行しました。
+  * ``LZ4_decompress_safe_withPrefix64k()`` から ``LZ4_createStreamDecode()`` 系の API に移行しました。
+  * LZ4::RawStreamEncoder が LZ4::BlockEncoder になりました。
+  * LZ4::RawStreamDecoder が LZ4::BlockDecoder になりました。
+
+## セーフレベルの確認処理を削除
+
+  * セーフレベルの確認処理を削除しました。
+
+    今まではセーフレベルが4以上の場合に汚染状態を移す必要のある場合は、
+    SecurityError 例外を発生させていましたが、この方針を変更して常に
+    汚染状態を伝搬させるだけの処理にしました。
 
 
 # extlz4-0.1.1 (2014-06-01)
@@ -34,7 +48,7 @@
 
 * lib/extlz4.rb: ブロック依存ストリーム生成の場合、高効率圧縮時に圧縮レベルが常に規定値になっていましたが、これを変動するように修正しました。
 
-* lib/extlz4.rb (`LZ4::StreamEncoder#initialize`): `raw_encode` / `RawStreamEncoder#update` に渡す `level` の値が [nil, 0 .. 16] になるように修正しました。
+* lib/extlz4.rb (`LZ4::StreamEncoder#initialize`): `block_encode` / `RawStreamEncoder#update` に渡す `level` の値が [nil, 0 .. 16] になるように修正しました。
 
 * bin/extlz4: lz4 ストリーム検査の時、標準入力を利用した場合でも『-f』スイッチが必要となっていましたが、これを不要とするように修正しました。
 

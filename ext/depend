@@ -1,5 +1,4 @@
+blockapi.o: blockapi.c extlz4.h
 extlz4.o: extlz4.c extlz4.h
 frameapi.o: frameapi.c extlz4.h hashargs.h
 hashargs.o: hashargs.c hashargs.h
-rawapi.o: rawapi.c extlz4.h
-rawapi2.o: rawapi2.c extlz4.h

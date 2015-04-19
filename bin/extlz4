@@ -6,6 +6,7 @@
 
 require "extlz4"
 require "optparse"
+require "find"
 
 PROGNAME = File.basename(__FILE__)
 opt = OptionParser.new(<<-EOS, 8, "  ")
@@ -51,22 +52,22 @@ opt.on("-t", "test compressed file") { mode = :test }
 opt.on("-v", "increment verbosery level") { verbose += 1 }
 outdir = nil
 opt.on("-Cdir", "set output directory") { |dir| outdir = dir }
-blocksize = 7
+blocksize = 0
 blockdep = false
 blockchecksum = false
 opt.separator("  -B#      set block size [4-7] (default: 7)") # merged to "-BD"
 opt.on("-BD", "set mode to block dependency (improve compression ratio)", %w[4 5 6 7 D]) do |o|
   case o
   when ?4, ?5, ?6, ?7
-    blocksize = o.ord - ?0.ord
+    blocksize = 1 << ((o.ord - ?0.ord) * 2 + 8)
   when ?D
     blockdep = true
   else
     0/0
   end
 end
-streamchecksum = true
-opt.on("-Sx", "disable stream checksum (default: enabled)", %w(x)) { streamchecksum = false }
+checksum = true
+opt.on("-Sx", "disable content checksum (default: enabled)", %w(x)) { checksum = false }
 opt.on("-V", "display program version") {
   puts <<-EOS
 #{PROGNAME}: extlz4-cli program version #{LZ4::VERSION} (powered by #{RUBY_ENGINE}-#{RUBY_VERSION})
@@ -88,8 +89,11 @@ begin
 rescue OptionParser::InvalidOption, OptionParser::InvalidArgument
   $stderr.puts <<-EOS
 #{PROGNAME}: #{$!}
-        enter ``#{PROGNAME} --help'' to print help.
   EOS
+#  $stderr.puts <<-EOS
+##{PROGNAME}: #{$!}
+#        enter ``#{PROGNAME} --help'' to print help.
+#  EOS
   exit 1
 end
 
@@ -97,7 +101,7 @@ def file_operation(outdir, infile, defaultoutfile, outstdout, forceoverwrite, ke
   case
   when outstdout
     outfile = $stdout.binmode
-  when infile == defaultoutfile
+  when infile == defaultoutfile # TODO: 大文字小文字を区別しないシステムも考慮すべし
     $stderr.puts "#{PROGNAME}: out file name is same as in file - #{infile}"
   else
     outfile = defaultoutfile
@@ -117,71 +121,100 @@ def file_operation(outdir, infile, defaultoutfile, outstdout, forceoverwrite, ke
   end
 
   true
-end  
+end
 
-if ARGV.empty?
-  if $stdout.tty? && !forceoverwrite && mode != :decode && mode != :test
-    $stderr.puts <<-EOS
+def find_files(path, recursive = false)
+  unless File.directory?(path)
+    yield path
+    return nil
+  end
+
+  unless recursive
+    $stderr.puts "#{PROGNAME}: ignored directory - #{path}"
+    return nil
+  end
+
+  Find.find(path) do |path1|
+    yield path1 unless File.directory? path1
+  end
+
+  nil
+end
+
+begin
+  if ARGV.empty?
+    if $stdout.tty? && !forceoverwrite && mode != :decode && mode != :test
+      $stderr.puts <<-EOS
 #{PROGNAME}: not written to terminal. use ``-f'' to force encode.
 \tor enter ``#{PROGNAME} --help'' to print help.
-    EOS
-    exit 1
-  end
+      EOS
+      exit 1
+    end
 
-  $stdin.binmode
-  $stdout.binmode
+    $stdin.binmode
+    $stdout.binmode
 
-  case mode
-  when :encode, nil
-    LZ4.encode_file($stdin, $stdout, level,
-                    blocklink: blockdep,
-                    streamsum: streamchecksum)
-  when :decode
-    LZ4.decode_file($stdin, $stdout)
-  when :test
-    LZ4.test_file($stdin)
+    case mode
+    when :encode, nil
+      LZ4.encode_file($stdin, $stdout, level,
+                      blocksize: blocksize,
+                      blocklink: blockdep,
+                      checksum: checksum)
+    when :decode
+      LZ4.decode_file($stdin, $stdout)
+    when :test
+      LZ4.test_file($stdin)
+    else
+      raise NotImplementedError
+    end
+
+    exit 0
   else
-    raise NotImplementedError
-  end
-
-  exit 0
-else
-  ARGV.each do |file|
-    file = file.gsub(File::ALT_SEPARATOR, File::SEPARATOR) if File::ALT_SEPARATOR
-    begin
-      case
-      when mode == :decode || (mode.nil? && file =~ /\.lz4$/i)
-        file_operation(outdir, file, file.sub(/\.lz4$/i, ""), outstdout, forceoverwrite, keepfile) do |infile, outfile|
-          LZ4.decode_file(infile, outfile)
-        end
-      when mode == :encode || mode.nil?
-        file_operation(outdir, file, file + ".lz4", outstdout, forceoverwrite, keepfile) do |infile, outfile|
-          LZ4.encode_file(infile, outfile, level,
-                          blocklink: blockdep,
-                          streamsum: streamchecksum)
-        end
-      when mode == :test
-        LZ4.test_file(file)
-      when mode == :fix_extlz4_0_1_bug
-        outname = file.sub(/(?<=#{File::SEPARATOR})(?=[^#{File::SEPARATOR}]+$)|^(?=[^#{File::SEPARATOR}]+$)/, "fixed-")
-        file_operation(outdir, file, outname, outstdout, forceoverwrite, true) do |infile, outfile|
-          require "extlz4/oldstream"
-          require "extlz4/fix-0.1bug"
-          if verbose > 0
-            $stderr.puts "#{PROGNAME}: correcting lz4 file - #{infile} to #{outfile}"
-          end
-          if verbose > 1
-            outinfo = ->(mesg, offset, total, *etc) do
-              $stderr.puts "#{mesg} (at #{offset} of #{total})"
+    ARGV.each do |file1|
+      file1 = file1.gsub(File::ALT_SEPARATOR, File::SEPARATOR) if File::ALT_SEPARATOR
+      find_files(file1, recursive) do |file|
+        begin
+          case
+          when mode == :decode || (mode.nil? && file =~ /\.lz4$/i)
+            file_operation(outdir, file, file.sub(/\.lz4$/i, ""), outstdout, forceoverwrite, keepfile) do |infile, outfile|
+              LZ4.decode_file(infile, outfile)
             end
+          when mode == :encode || mode.nil?
+            file_operation(outdir, file, file + ".lz4", outstdout, forceoverwrite, keepfile) do |infile, outfile|
+              LZ4.encode_file(infile, outfile, level,
+                              blocksize: blocksize,
+                              blocklink: blockdep,
+                              checksum: checksum)
+            end
+          when mode == :test
+            LZ4.test_file(file)
+          when mode == :fix_extlz4_0_1_bug
+            require "extlz4/oldstream"
+            require "extlz4/fix-0.1bug"
+
+            outname = file.sub(/(?<=#{File::SEPARATOR})(?=[^#{File::SEPARATOR}]+$)|^(?=[^#{File::SEPARATOR}]+$)/, "fixed-")
+              file_operation(outdir, file, outname, outstdout, forceoverwrite, true) do |infile, outfile|
+              if verbose > 0
+                $stderr.puts "#{PROGNAME}: correcting lz4 file - #{infile} to #{outfile}"
+              end
+              if verbose > 1
+                outinfo = ->(mesg, offset, total, *etc) do
+                  $stderr.puts "#{mesg} (at #{offset} of #{total})"
+                end
+              end
+              LZ4.fix_extlz4_0_1_bug(infile, outfile, &outinfo)
+              end
+          else
+            $stderr.puts "#{PROGNAME}: mode error - #{mode}"
           end
-          LZ4.fix_extlz4_0_1_bug(infile, outfile, &outinfo)
+        rescue LZ4::Error #, Object
+          $stderr.puts "#{PROGNAME}: #{file} - #$! (#{$!.class})"
         end
-      else
-        $stderr.puts "#{PROGNAME}: mode error - #{mode}"
       end
-    rescue LZ4::Error #, Object
-      $stderr.puts "#{PROGNAME}: #{file} - #$! (#{$!.class})"
     end
   end
+rescue LZ4::Error
+  $stderr.puts "#{PROGNAME}: #$! (#{$!.class})"
+rescue SystemCallError, SignalException
+  # do nothing
 end

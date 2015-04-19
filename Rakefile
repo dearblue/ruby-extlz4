@@ -2,13 +2,15 @@
 require "rake/clean"
 
 DOC = FileList["{README,LICENSE,CHANGELOG,Changelog,HISTORY}{,.ja}{,.txt,.rd,.rdoc,.md,.markdown}"] +
-      FileList["ext/**/{README,LICENSE,CHANGELOG,Changelog,HISTORY}{,.ja}{,.txt,.rd,.rdoc,.md,.markdown}"]
+      FileList["{contrib,ext}/**/{README,LICENSE,CHANGELOG,Changelog,HISTORY}{,.ja}{,.txt,.rd,.rdoc,.md,.markdown}"] +
+      FileList["ext/**/*.{c,C,cc,cxx,cpp,h,H,hh}"]
 #EXT = FileList["ext/**/*.{h,hh,c,cc,cpp,cxx}"] +
 #      FileList["ext/externals/**/*"]
 EXT = FileList["ext/**/*"]
 BIN = FileList["bin/*"]
 LIB = FileList["lib/**/*.rb"]
 SPEC = FileList["spec/**/*"]
+TEST = FileList["test/**/*"]
 EXAMPLE = FileList["examples/**/*"]
 GEMSTUB_SRC = "gemstub.rb"
 RAKEFILE = [File.basename(__FILE__), GEMSTUB_SRC]
@@ -25,7 +27,7 @@ GEMSTUB.executables.sort!
 GEMFILE = "#{GEMSTUB.name}-#{GEMSTUB.version}.gem"
 GEMSPEC = "#{GEMSTUB.name}.gemspec"
 
-GEMSTUB.files += DOC + EXT + EXTCONF + BIN + LIB + SPEC + EXAMPLE + RAKEFILE + EXTRA
+GEMSTUB.files += DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + EXTRA
 GEMSTUB.files.sort!
 GEMSTUB.rdoc_options ||= %w(--charset UTF-8)
 GEMSTUB.extra_rdoc_files += DOC + LIB + EXT.reject { |n| n.include?("/externals/") || !%w(.h .hh .c .cc .cpp .cxx).include?(File.extname(n)) }
@@ -82,7 +84,7 @@ unless EXTCONF.empty?
     desc "generate binary gemspec"
     task "native-gemspec" => GEMSPEC_NATIVE
 
-    file GEMFILE_NATIVE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + EXAMPLE + SOFILES + RAKEFILE + [GEMSPEC_NATIVE] do
+    file GEMFILE_NATIVE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + SOFILES + RAKEFILE + [GEMSPEC_NATIVE] do
       sh "gem build #{GEMSPEC_NATIVE}"
     end
 
@@ -123,8 +125,8 @@ end
 task :all => GEMFILE
 
 desc "generate local rdoc"
-task :rdoc => DOC + EXT + LIB do
-  sh *(%w(rdoc) + GEMSTUB.rdoc_options + DOC + EXT + LIB)
+task :rdoc => DOC + LIB do
+  sh *(%w(rdoc) + GEMSTUB.rdoc_options + DOC + LIB)
 end
 
 desc "launch rspec"
@@ -138,7 +140,7 @@ task gem: GEMFILE
 desc "generate gemspec"
 task gemspec: GEMSPEC
 
-file GEMFILE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + EXAMPLE + RAKEFILE + [GEMSPEC] do
+file GEMFILE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + [GEMSPEC] do
   sh "gem build #{GEMSPEC}"
 end
 

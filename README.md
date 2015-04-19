@@ -6,31 +6,34 @@
 
 LZ4 データストリームを圧縮・伸張できます。lz4-cli で扱うことが出来ます。
 
-    $ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' | lz4c -d | more
+``` shell:shell
+$ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' | lz4c -d | more
+```
 
 ほかの ruby 向けの lz4 バインディングライブラリとしては KOMIYA Atsushi さんによる [lz4-ruby (http://rubygems.org/gems/lz4-ruby)](http://rubygems.org/gems/lz4-ruby) があります。
 
 
 ## SUMMARY (概要)
 
-- PACKAGE NAME (名称): extlz4
-- AUTHOR (制作者): dearblue <dearblue@users.sourceforge.jp>
-- HOW TO INSTALL (インストール手順): `gem install extlz4`
-- VERSION (バージョン情報): 0.2
-- RELEASE QUALITY (品質): alpha
-- LICENSING (ライセンス): 2-clause BSD License (二条項 BSD ライセンス)
-- DEPENDENCY GEMS (依存する gem パッケージ):
-    - none (なし)
-- DEPENDENCY EXTERNAL C LIBRARIES (依存する外部 C ライブラリ):
-    - none (なし)
-- BUNDLED EXTERNAL C LIBRARIES (同梱される外部 C ライブラリ):
-    - lz4 (Yann Collet さんによる) <http://code.google.com/p/lz4/> (r127)
-- REPORT ISSUE TO (問題の報告先): <http://sourceforge.jp/projects/rutsubo/ticket/>
+  * PACKAGE NAME (名称): extlz4
+  * AUTHOR (制作者): dearblue <dearblue@users.sourceforge.jp>
+  * REPORT ISSUE TO (問題の報告先): <http://sourceforge.jp/projects/rutsubo/ticket/>
+  * HOW TO INSTALL (インストール手順): `gem install extlz4`
+  * VERSION (バージョン情報): 0.2
+  * RELEASE QUALITY (品質): alpha
+  * LICENSING (ライセンス): 2-clause BSD License (二条項 BSD ライセンス)
+  * DEPENDENCY GEMS (依存する gem パッケージ):
+      * none (なし)
+  * DEPENDENCY EXTERNAL C LIBRARIES (依存する外部 C ライブラリ):
+      * none (なし)
+  * BUNDLED EXTERNAL C LIBRARIES (同梱される外部 C ライブラリ):
+      * lz4 (Yann Collet さんによる) <http://code.google.com/p/lz4/> (r127)
 
 
 ## ATTENTIONS (注意事項)
 
-- Many documents are written in japanese.
+  * Many documents are written in japanese.
+
     (ドキュメントの多くは日本語で記述されています)
 
 
@@ -59,29 +62,27 @@ extlz4-0.1.1 でその不具合の修正を行いました。
 
 ## FEATURES (機能)
 
-- Generic LZ4 streaming data process
-    - Decode LZ4 streaming data: ``LZ4.decode``
-    - Encode LZ4 streaming data: ``LZ4.encode``
-- Generic LZ4 streaming data file process
-    - Decode LZ4 streaming data file: ``LZ4.decode_file``
-    - Encode LZ4 streaming data file: ``LZ4.encode_file``
-- Primitive LZ4 data process
-    - Decode LZ4 data: ``LZ4.raw_decode``
-    - Encode LZ4 data: ``LZ4.raw_encode`` (supporting high compression level)
-    - Streaming Decode LZ4 data: ``LZ4.raw_stream_decode`` and ``LZ4::RawStreamDecoder#update``
-    - Streaming Encode LZ4 data: ``LZ4.raw_stream_encode`` and ``LZ4::RawStreamEncoder#update`` (supporting high compression level)
+  * Generic LZ4 frame data process
+      * Decode LZ4 Frame data : LZ4.decode
+      * Encode LZ4 Frame data : LZ4.encode
+  * Generic LZ4 frame data file process
+      * Decode LZ4 Frame data file : LZ4.decode\_file
+      * Encode LZ4 Frame data file : LZ4.encode\_file
+  * LZ4 block data process
+      * Decode LZ4 block data : LZ4.block\_decode
+      * Encode LZ4 block data : LZ4.block\_encode (supporting high compression level)
+      * Streaming Decode LZ4 block data : LZ4.block\_stream\_decode and LZ4::BlockDecoder#update
+      * Streaming Encode LZ4 block data : LZ4.block\_stream\_encode and LZ4::BlockEncoder#update (supporting high compression level)
 
 
-## ABOUT SECURITY (セキュリティについて)
+## ABOUT TAINT STATE AND SECURITY (汚染状態とセキュリティについて)
 
-extlz4 はセキュリティレベルとオブジェクトの汚染状態を確認し、禁止される処理を決定します。
+extlz4 はオブジェクト間での汚染状態を一方向伝播します。
 
-セーフレベルが3未満であれば、禁止される処理はありません。
+オブジェクトの汚染伝播については『入力 -> 出力』となり、
+ストリーム処理の場合は『入力 -> 圧縮器・伸張器 -> 出力』というようになります。
 
-セーフレベルが3以上の場合、入力と出力 (ストリーム処理の場合はストリーム処理器が含まれる) のすべてが汚染状態でなければ禁止されます。
-
-いずれのセーフレベルにおいても、オブジェクト間で汚染状態が一方向伝播されます。
-オブジェクトの汚染伝播については『入力 -> 出力』となり、ストリーム処理の場合は『入力 -> 圧縮器・伸張器 -> 出力』というようになります。
+セキュリティレベルによる処理の拒否は行いません。
 
 
 ## EXAMPLES (用例)
@@ -104,13 +105,13 @@ uncompressed_data_string = LZ4.decode(compressed_data_string)
 compressed_data_string = LZ4.encode(uncompressed_data_string)
 ```
 
-### High compression encoding (高効率圧縮処理)
+### High compression encoding (高圧縮処理)
 
 ``` ruby:ruby
 compressed_data_string = LZ4.encode(uncompressed_data_string, 9)
 ```
 
-### Stream decoding
+### Frame decoding
 
 ``` ruby:ruby
 File.open("sample.txt.lz4", "rb") do |file|
@@ -122,7 +123,7 @@ File.open("sample.txt.lz4", "rb") do |file|
 end
 ```
 
-### Stream encoding by high compression
+### Frame encoding by high compression
 
 ``` ruby:ruby
 File.open("sample.txt.lz4", "wb") do |file|
@@ -133,7 +134,7 @@ File.open("sample.txt.lz4", "wb") do |file|
 end
 ```
 
-### Stream encoding without block
+### Frame encoding without block
 
 ``` ruby:ruby
 file = File.open("sample.txt.lz4", "wb")
@@ -142,38 +143,53 @@ lz4 << "abcdefghijklmnopqrstuvwxyz\n"
 lz4.close  # VERY IMPORTANT!
 ```
 
-### Raw data processing (high compression encoding and decoding)
+### Block data processing (fast compression encoding and decoding)
 
-    src = "abcdefg" * 100
-    lz4data = LZ4.raw_encode(16, src)
-    data = LZ4.raw_decode(lz4data)
-    p src == data  # => true
+``` ruby:ruby
+src = "abcdefg" * 100
+lz4data = LZ4.block_encode(src)
+data = LZ4.block_decode(lz4data)
+p src == data  # => true
+```
 
-### Raw stream data processing (high compression encoding and decoding)
+### Block data processing (high compression encoding and decoding)
 
-    blocksize = 4 * 1024  # 4 KiB (REQEUIRED PARAMETER)
-    ishighcompress = true  # use high compression method (OPTIONAL PARAMETER)
-    encoder = LZ4.raw_stream_encode(blocksize, ishighcompress)
+``` ruby:ruby
+src = "abcdefg" * 100
+level = 8
+lz4data = LZ4.block_encode(level, src)
+data = LZ4.block_decode(lz4data)
+p src == data  # => true
+```
 
-    src = "abcdefg" * 100
-    lz4data1 = encoder.update(16, src)
+### Block stream data processing (high compression encoding and decoding)
 
-    decoder = LZ4.raw_stream_decode  # not required blocksize
+``` ruby:ruby
+level = 8 # (OPTIONAL PARAMETER)
+predict = "abcdefg" # with preset dictionary (OPTIONAL PARAMETER)
+encoder = LZ4.block_stream_encode(level, predict)
 
-    data = decoder.update(lz4data1)
-    p src == data  # => true
+src = "abcdefg" * 100
+lz4data1 = encoder.update(src)
 
-    lz4data2 = encoder.update(src)  # default high compression level
-    p "lz4data1.bytesize" => lz4data1.bytesize,
-      "lz4data2.bytesize" => lz4data2.bytesize
+decoder = LZ4.block_stream_decode(predict)
 
-    data = decoder.update(lz4data2)
-    p src == data  # => true
+data = decoder.update(lz4data1)
+p src == data  # => true
+
+src2 = "ABCDEFG" * 100
+lz4data2 = encoder.update(src2)
+p "lz4data1.bytesize" => lz4data1.bytesize,
+  "lz4data2.bytesize" => lz4data2.bytesize
+
+data = decoder.update(lz4data2)
+p src2 == data  # => true
+```
 
 
-## おまけ
+## BONUS (おまけ)
 
-コマンドラインプログラムとして `extlz4` が追加されます。
+コマンドラインプログラムとして ``extlz4`` が追加されます。
 
 これは lz4 と同程度の機能を持ちます (車輪の再発明とも言う)。
 
