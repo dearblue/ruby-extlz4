@@ -169,9 +169,6 @@ blockprocess_args(int argc, VALUE argv[], VALUE *src, VALUE *dest, size_t *maxsi
             } else if (rb_obj_is_kind_of(tmp, rb_cNumeric)) {
                 argv ++;
                 w = NUM2INT(tmp);
-                if (w < 0) {
-                    rb_raise(rb_eArgError, "wrong negative number for level");
-                }
             }
         }
         *level = w;
@@ -217,7 +214,7 @@ typedef void *blockencoder_create_f(int level);
 typedef int blockencoder_free_f(void *context);
 typedef int blockencoder_loaddict_f(void *context, const char *dict, int dictsize);
 typedef int blockencoder_savedict_f(void *context, char *dict, int dictsize);
-typedef int blockencoder_update_f(void *context, const char *src, char *dest, int srcsize, int destsize);
+typedef int blockencoder_update_f(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration);
 typedef int blockencoder_update_unlinked_f(void *context, const char *src, char *dest, int srcsize, int destsize);
 
 struct blockencoder_traits
@@ -228,7 +225,7 @@ struct blockencoder_traits
     blockencoder_loaddict_f *loaddict;
     blockencoder_savedict_f *savedict;
     blockencoder_update_f *update;
-    blockencoder_update_unlinked_f *update_unlinked;
+    /* blockencoder_update_unlinked_f *update_unlinked; */
 };
 
 static void
@@ -238,6 +235,13 @@ aux_LZ4_resetStream(LZ4_stream_t *context, int level__ignored__)
     LZ4_resetStream(context);
 }
 
+static int
+aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
+{
+    (void)acceleration__ignored__;
+    return LZ4_compressHC_limitedOutput_continue(context, src, dest, srcsize, destsize);
+}
+
 static const struct blockencoder_traits blockencoder_traits_std = {
     .reset = (blockencoder_reset_f *)aux_LZ4_resetStream,
     .create = (blockencoder_create_f *)LZ4_createStream,
@@ -245,7 +249,7 @@ static const struct blockencoder_traits blockencoder_traits_std = {
     .loaddict = (blockencoder_loaddict_f *)LZ4_loadDict,
     .savedict = (blockencoder_savedict_f *)LZ4_saveDict,
     .update = (blockencoder_update_f *)LZ4_compress_limitedOutput_continue,
-    .update_unlinked = (blockencoder_update_f *)LZ4_compress_limitedOutput_withState,
+    /* .update_unlinked = (blockencoder_update_unlinked_f *)LZ4_compress_limitedOutput_withState, */
 };
 
 static const struct blockencoder_traits blockencoder_traits_hc = {
@@ -254,8 +258,8 @@ static const struct blockencoder_traits blockencoder_traits_hc = {
     .free = (blockencoder_free_f *)LZ4_freeStreamHC,
     .loaddict = (blockencoder_loaddict_f *)LZ4_loadDictHC,
     .savedict = (blockencoder_savedict_f *)LZ4_saveDictHC,
-    .update = (blockencoder_update_f *)LZ4_compressHC_limitedOutput_continue,
-    .update_unlinked = (blockencoder_update_f *)LZ4_compressHC_limitedOutput_withStateHC,
+    .update = (blockencoder_update_f *)aux_LZ4_compressHC_continue,
+    /* .update_unlinked = (blockencoder_update_unlinked_f *)LZ4_compressHC_limitedOutput_withStateHC, */
 };
 
 struct blockencoder
@@ -331,11 +335,16 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
     rb_scan_args(argc, argv, "02", &level1, &p->predict);
 
     if (NIL_P(level1)) {
-        p->level = -1;
+        p->level = 1;
         p->traits = &blockencoder_traits_std;
     } else {
         p->level = NUM2UINT(level1);
-        p->traits = &blockencoder_traits_hc;
+        if (p->level < 0) {
+            p->traits = &blockencoder_traits_std;
+            p->level = -p->level;
+        } else {
+            p->traits = &blockencoder_traits_hc;
+        }
     }
 
     if (argc < 2) {
@@ -360,7 +369,7 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
  *  initialize(level = nil, predict = nil)
  *
  * [INFECTION]
- *  +self+ < +predict+
+ *  +self+ <- +predict+
  *
  * [RETURN]
  *      self
@@ -400,7 +409,7 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
  *  update(src, max_dest_size, dest = "") -> dest
  *
  * [INFECTION]
- *      +dest+ < +self+ < +src+
+ *      +dest+ <- +self+ <- +src+
  */
 static VALUE
 blkenc_update(int argc, VALUE argv[], VALUE enc)
@@ -414,7 +423,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
-    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, rb_str_capacity(dest));
+    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, rb_str_capacity(dest), p->level);
     if (s <= 0) {
         rb_raise(eError,
                 "destsize too small (given destsize is %zu)",
@@ -483,14 +492,17 @@ blkenc_inspect(VALUE enc)
 {
     struct blockencoder *p = getencoderp(enc);
     if (p && p->context) {
-        if (p->level < 0) {
-            return rb_sprintf("#<%s:%p (fast compression)%s>",
-                    rb_obj_classname(enc), (void *)enc,
+        if (p->traits == &blockencoder_traits_std) {
+            return rb_sprintf("#<%s:%p (fast compression %d)%s>",
+                    rb_obj_classname(enc), (void *)enc, p->level,
                     (NIL_P(p->predict)) ? "" : " (with predict)");
-        } else {
+        } else if (p->traits == &blockencoder_traits_hc) {
             return rb_sprintf("#<%s:%p (high compression %d)%s>",
                     rb_obj_classname(enc), (void *)enc, p->level,
                     (NIL_P(p->predict)) ? "" : " (with predict)");
+        } else {
+            return rb_sprintf("#<%s:%p **INVALID COMPRESSOR**>",
+                    rb_obj_classname(enc), (void *)enc);
         }
     } else {
         return rb_sprintf("#<%s:%p **NOT INITIALIZED**>",
@@ -507,16 +519,10 @@ blkenc_inspect(VALUE enc)
 static VALUE
 blkenc_s_compressbound(VALUE mod, VALUE src)
 {
-    return SIZET2NUM(aux_lz4_compressbound(src));
+    return SIZET2NUM(LZ4_compressBound(NUM2UINT(src)));
 }
 
 typedef int aux_lz4_encoder_f(const char *src, char *dest, int srcsize, int maxsize, int level);
-
-static int
-aux_LZ4_compress_limitedOutput(const char *src, char *dest, int srcsize, int maxsize, int level)
-{
-    return LZ4_compress_limitedOutput(src, dest, srcsize, maxsize);
-}
 
 /*
  * call-seq:
@@ -532,7 +538,7 @@ aux_LZ4_compress_limitedOutput(const char *src, char *dest, int srcsize, int max
  * 実装の都合上、圧縮関数は LZ4_compress_limitedOutput / LZ4_compressHC2_limitedOutput が使われます。
  *
  * [INFECTION]
- *      +dest+ < +src+
+ *      +dest+ <- +src+
  *
  * [RETURN]
  *      圧縮されたデータが文字列として返ります。dest を指定した場合は、圧縮データを格納した dest を返します。
@@ -542,22 +548,27 @@ aux_LZ4_compress_limitedOutput(const char *src, char *dest, int srcsize, int max
  * [src]
  *      圧縮対象となる文字列オブジェクトを指定します。
  *
- * [max_dest_size]
+ * [max_dest_size (optional)]
  *      出力バッファの最大バイト数を指定します。圧縮時にこれよりも多くのバッファ長が必要になった場合は例外が発生します。
  *
  *      省略時は src 長から最悪値が計算されます。dest が最初に確保できれば圧縮処理中に例外が発生することがありません。
  *
- * [dest]
+ * [dest (optional)]
  *      出力先とする文字列オブジェクトを指定します。
  *
  *      max_dest_size が同時に指定されない場合、出力バッファの最大バイト長は src 長から最悪値が求められて調整されます。
  *
- * [level]
- *      圧縮レベルとして 0 から 16 までの整数で指定すると、高効率圧縮処理が行われます。
+ * [level (optional)]
+ *      圧縮レベルとしての数値または nil を指定します。
  *
  *      0 を指定した場合、LZ4 の規定値による高効率圧縮処理が行われます。
  *
+ *      0 を超えた数値を指定した場合、LZ4 の高効率圧縮処理が行われます。
+ *
  *      nil を与えるか省略した場合、通常の圧縮処理が行われます。
+ *
+ *      0 に満たない数値を指定した場合、高速圧縮処理が行われます。
+ *      内部でこの値は絶対値に変換されて LZ4_compress_fast() の acceleration 引数として渡されます。
  */
 static VALUE
 blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
@@ -569,7 +580,8 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
 
     aux_lz4_encoder_f *encoder;
     if (level < 0) {
-        encoder = aux_LZ4_compress_limitedOutput;
+        encoder = LZ4_compress_fast;
+        level = -level;
     } else {
         encoder = LZ4_compressHC2_limitedOutput;
     }

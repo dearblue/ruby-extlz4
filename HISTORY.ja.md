@@ -1,4 +1,15 @@
 
+# extlz4-0.2.1 (TRYOUT)
+
+  * lz4 ライブラリを r131 (https://github.com/Cyan4973/lz4/tree/r131) に更新
+  * LZ4\_compress\_fast に対応
+  * LZ4::BlockEncoder.compressbound の不具合修正
+
+    引数として与えられた整数値を ruby レベルから C レベルに変換し、その値を
+    ruby レベルの文字列オブジェクト (RString) として扱っていました。
+    この不具合を修正しています。
+
+
 # extlz4-0.2 (2015-04-19)
 
 ## いくつかの名称の変更

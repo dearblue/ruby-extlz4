@@ -21,6 +21,12 @@ class TestBlockAPI < Test::Unit::TestCase
     assert_same(buf, LZ4.block_encode(SAMPLES["\\0 (small size)"], 1000, buf))
     assert_same(buf, LZ4.block_encode(nil, SAMPLES["\\0 (small size)"], 1000, buf))
 
+    # high speed
+    assert_kind_of(String, LZ4.block_encode(-15, SAMPLES["\\0 (small size)"]))
+    assert_kind_of(String, LZ4.block_encode(-15, SAMPLES["\\0 (small size)"], 1000))
+    assert_same(buf, LZ4.block_encode(-15, SAMPLES["\\0 (small size)"], buf))
+    assert_same(buf, LZ4.block_encode(-15, SAMPLES["\\0 (small size)"], 1000, buf))
+
     # high compression
     assert_kind_of(String, LZ4.block_encode(0, SAMPLES["\\0 (small size)"]))
     assert_kind_of(String, LZ4.block_encode(0, SAMPLES["\\0 (small size)"], 1000))
@@ -32,7 +38,6 @@ class TestBlockAPI < Test::Unit::TestCase
     src = SAMPLES["\\0 (small size)"]
     buf = ""
     assert_raise(ArgumentError) { LZ4.block_encode } # no arguments
-    assert_raise(ArgumentError) { LZ4.block_encode(-1, src) } # wrong level
     assert_raise(TypeError) { LZ4.block_encode(100) } # source is not string
     assert_raise(TypeError) { LZ4.block_encode(nil) } # source is not string
     assert_raise(TypeError) { LZ4.block_encode(:bad_input) } # source is not string

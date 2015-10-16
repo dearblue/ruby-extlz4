@@ -1,8 +1,7 @@
- # encoding:utf-8 ;
 
 # extlz4 - LZ4 for ruby
 
-圧縮伸張ライブラリ [lz4 (http://code.google.com/p/lz4/)](http://code.google.com/p/lz4/) の ruby バインディングライブラリです。
+圧縮伸張ライブラリ [lz4 (https://github.com/Cyan4973/lz4/)](https://github.com/Cyan4973/lz4/) の非公式 ruby バインディングライブラリです。
 
 LZ4 データストリームを圧縮・伸張できます。lz4-cli で扱うことが出来ます。
 
@@ -15,19 +14,17 @@ $ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' |
 
 ## SUMMARY (概要)
 
-  * PACKAGE NAME (名称): extlz4
-  * AUTHOR (制作者): dearblue <dearblue@users.sourceforge.jp>
-  * REPORT ISSUE TO (問題の報告先): <http://sourceforge.jp/projects/rutsubo/ticket/>
-  * HOW TO INSTALL (インストール手順): `gem install extlz4`
-  * VERSION (バージョン情報): 0.2
-  * RELEASE QUALITY (品質): alpha
-  * LICENSING (ライセンス): 2-clause BSD License (二条項 BSD ライセンス)
-  * DEPENDENCY GEMS (依存する gem パッケージ):
-      * none (なし)
-  * DEPENDENCY EXTERNAL C LIBRARIES (依存する外部 C ライブラリ):
-      * none (なし)
-  * BUNDLED EXTERNAL C LIBRARIES (同梱される外部 C ライブラリ):
-      * lz4 (Yann Collet さんによる) <http://code.google.com/p/lz4/> (r127)
+  * package name (名称): extlz4
+  * author (制作者): dearblue (mailto:dearblue@users.osdn.me)
+  * report issue to (問題の報告先): <https://osdn.jp/projects/rutsubo/ticket/>
+  * how to install (インストール手順): `gem install extlz4`
+  * version (バージョン情報): 0.2.1
+  * release quality (品質): technical preview
+  * licensing (ライセンス): 2-clause BSD License (二条項 BSD ライセンス)
+  * dependency gems (依存する gem パッケージ): none (なし)
+  * dependency external c libraries (依存する外部 C ライブラリ): none (なし)
+  * bundled external c libraries (同梱される外部 C ライブラリ):
+      * lz4 (Yann Collet さんによる) <https://github.com/Cyan4973/lz4/tree/r131> (r131)
 
 
 ## ATTENTIONS (注意事項)
@@ -160,6 +157,14 @@ level = 8
 lz4data = LZ4.block_encode(level, src)
 data = LZ4.block_decode(lz4data)
 p src == data  # => true
+```
+
+### Block data processing (high speed encoding)
+
+``` ruby:ruby
+src = "abcdefg" * 100
+level = -19 # transform to one's complement as acceleration
+lz4data = LZ4.block_encode(level, src)
 ```
 
 ### Block stream data processing (high compression encoding and decoding)

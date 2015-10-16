@@ -50,7 +50,7 @@ static void *
 aux_LZ4F_compressUpdate_nogvl(void *pp)
 {
     va_list *p = pp;
-    LZ4F_compressionContext_t *encoder = va_arg(*p, LZ4F_compressionContext_t *);
+    LZ4F_compressionContext_t encoder = va_arg(*p, LZ4F_compressionContext_t);
     char *dest = va_arg(*p, char *);
     size_t destsize = va_arg(*p, size_t);
     const char *src = va_arg(*p, const char *);
@@ -61,7 +61,7 @@ aux_LZ4F_compressUpdate_nogvl(void *pp)
 }
 
 static size_t
-aux_LZ4F_compressUpdate(LZ4F_compressionContext_t *encoder,
+aux_LZ4F_compressUpdate(LZ4F_compressionContext_t encoder,
         char *dest, size_t destsize, const char *src, size_t srcsize,
         LZ4F_compressOptions_t *opts)
 {

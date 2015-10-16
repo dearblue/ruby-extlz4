@@ -29,7 +29,10 @@ GEMSPEC = "#{GEMSTUB.name}.gemspec"
 
 GEMSTUB.files += DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + EXTRA
 GEMSTUB.files.sort!
-GEMSTUB.rdoc_options ||= %w(--charset UTF-8)
+if GEMSTUB.rdoc_options.nil? || GEMSTUB.rdoc_options.empty?
+  readme = %W(.md .markdown .rd .rdoc .txt #{""}).map { |ext| "README#{ext}" }.find { |m| DOC.find { |n| n == m } }
+  GEMSTUB.rdoc_options = %w(--charset UTF-8) + (readme ? %W(-m #{readme}) : [])
+end
 GEMSTUB.extra_rdoc_files += DOC + LIB + EXT.reject { |n| n.include?("/externals/") || !%w(.h .hh .c .cc .cpp .cxx).include?(File.extname(n)) }
 GEMSTUB.extra_rdoc_files.sort!
 
