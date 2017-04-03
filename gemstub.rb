@@ -1,8 +1,13 @@
-require_relative "lib/extlz4/version"
+unless File.read("README.md", 4096) =~ /^\s*\*\s*version:{1,2}\s*(.+)/i
+  raise "バージョン情報が README.md に見つかりません"
+end
+
+ver = $1
+
 
 GEMSTUB = Gem::Specification.new do |s|
   s.name = "extlz4"
-  s.version = LZ4::VERSION
+  s.version = ver
   s.summary = "ruby bindings for LZ4"
   s.description = <<EOS
 ruby bindings for LZ4 <https://code.google.com/p/lz4/>.
