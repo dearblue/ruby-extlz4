@@ -16,4 +16,7 @@ EOS
   s.add_development_dependency "rake", "~> 10.0"
 end
 
-EXTRA.concat(FileList["contrib/**/*"])
+contrib = FileList["contrib/**/*"]
+contrib.reject! { |e| e =~ %r(\bcontrib/lz4/(?:Makefile|appveyor\.yml|contrib|doc|examples|lib/Makefile|lib/dll|programs|tests|visual)(?:$|/)) }
+
+EXTRA.concat(contrib)
