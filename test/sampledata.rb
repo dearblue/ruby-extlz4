@@ -1,3 +1,5 @@
+require "openssl" # for OpenSSL::Random.random_bytes
+
 SMALLSIZE = 400
 BIGSIZE = 12000000
 

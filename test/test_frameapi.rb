@@ -29,7 +29,6 @@
 =end
 
 require "test-unit"
-require "openssl" # for OpenSSL::Random.random_bytes
 require "extlz4"
 
 require_relative "sampledata"
