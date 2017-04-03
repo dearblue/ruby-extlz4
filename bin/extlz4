@@ -1,7 +1,7 @@
 #!ruby
 #vim: set fileencoding:utf-8
 
-# AUTHOR: dearblue <dearblue@users.sourceforge.co.jp>
+# AUTHOR: dearblue <dearblue@users.noreply.github.com>
 # Only this program is usable as public domain software.
 
 require "extlz4"
