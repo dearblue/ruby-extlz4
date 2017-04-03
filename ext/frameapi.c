@@ -80,7 +80,7 @@ aux_frame_blocksize(const LZ4F_frameInfo_t *info)
 {
     int bsid = info->blockSizeID;
     if (bsid == 0) {
-        bsid = max4MB;
+        bsid = LZ4F_max4MB;
     }
     return 1 << (bsid * 2 + 8);
 }
@@ -88,13 +88,13 @@ aux_frame_blocksize(const LZ4F_frameInfo_t *info)
 static int
 aux_frame_blocklink(const LZ4F_frameInfo_t *info)
 {
-    return info->blockMode == blockLinked;
+    return info->blockMode == LZ4F_blockLinked;
 }
 
 static int
 aux_frame_checksum(const LZ4F_frameInfo_t *info)
 {
-    return info->contentChecksumFlag == contentChecksumEnabled;
+    return info->contentChecksumFlag == LZ4F_contentChecksumEnabled;
 }
 
 /*** class LZ4::Encoder ***/
@@ -149,15 +149,15 @@ static inline int
 fenc_init_args_blocksize(size_t size)
 {
     if (size == 0) {
-        return max4MB;
+        return LZ4F_max4MB;
     } else if (size <= 64 * 1024) {
-        return max64KB;
+        return LZ4F_max64KB;
     } else if (size <= 256 * 1024) {
-        return max256KB;
+        return LZ4F_max256KB;
     } else if (size <= 1 * 1024 * 1024) {
-        return max1MB;
+        return LZ4F_max1MB;
     } else {
-        return max4MB;
+        return LZ4F_max4MB;
     }
 }
 
@@ -182,13 +182,13 @@ fenc_init_args(int argc, VALUE argv[], VALUE *outport, LZ4F_preferences_t *prefs
                 RBX_SCANHASH_ARGS("blocklink", &blocklink, Qfalse),
                 RBX_SCANHASH_ARGS("checksum", &checksum, Qtrue));
         // prefs->autoFlush = TODO;
-        prefs->frameInfo.blockSizeID = NIL_P(blocksize) ? max4MB : fenc_init_args_blocksize(NUM2INT(blocksize));
-        prefs->frameInfo.blockMode = RTEST(blocklink) ? blockLinked : blockIndependent;
-        prefs->frameInfo.contentChecksumFlag = RTEST(checksum) ? contentChecksumEnabled : noContentChecksum;
+        prefs->frameInfo.blockSizeID = NIL_P(blocksize) ? LZ4F_max4MB : fenc_init_args_blocksize(NUM2INT(blocksize));
+        prefs->frameInfo.blockMode = RTEST(blocklink) ? LZ4F_blockLinked : LZ4F_blockIndependent;
+        prefs->frameInfo.contentChecksumFlag = RTEST(checksum) ? LZ4F_contentChecksumEnabled : LZ4F_noContentChecksum;
     } else {
-        prefs->frameInfo.blockSizeID = max4MB;
-        prefs->frameInfo.blockMode = blockIndependent;
-        prefs->frameInfo.contentChecksumFlag = contentChecksumEnabled;
+        prefs->frameInfo.blockSizeID = LZ4F_max4MB;
+        prefs->frameInfo.blockMode = LZ4F_blockIndependent;
+        prefs->frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
     }
 }
 
