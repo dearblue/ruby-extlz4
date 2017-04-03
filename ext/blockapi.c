@@ -625,6 +625,16 @@ init_blockencoder(void)
     rb_define_singleton_method(cBlockEncoder, "compressbound", blkenc_s_compressbound, 1);
     rb_define_singleton_method(cBlockEncoder, "encode", blkenc_s_encode, -1);
     rb_define_alias(rb_singleton_class(cBlockEncoder), "compress", "encode");
+
+    rb_define_const(mLZ4, "LZ4HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
+    rb_define_const(mLZ4, "LZ4HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
+    rb_define_const(mLZ4, "LZ4HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
+    rb_define_const(mLZ4, "LZ4HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
+
+    rb_define_const(mLZ4, "HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
+    rb_define_const(mLZ4, "HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
+    rb_define_const(mLZ4, "HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
+    rb_define_const(mLZ4, "HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
 }
 
 /*
