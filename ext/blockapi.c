@@ -239,7 +239,7 @@ static int
 aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
 {
     (void)acceleration__ignored__;
-    return LZ4_compressHC_limitedOutput_continue(context, src, dest, srcsize, destsize);
+    return LZ4_compress_HC_continue(context, src, dest, srcsize, destsize);
 }
 
 static const struct blockencoder_traits blockencoder_traits_std = {
@@ -248,7 +248,7 @@ static const struct blockencoder_traits blockencoder_traits_std = {
     .free = (blockencoder_free_f *)LZ4_freeStream,
     .loaddict = (blockencoder_loaddict_f *)LZ4_loadDict,
     .savedict = (blockencoder_savedict_f *)LZ4_saveDict,
-    .update = (blockencoder_update_f *)LZ4_compress_limitedOutput_continue,
+    .update = (blockencoder_update_f *)LZ4_compress_fast_continue,
     /* .update_unlinked = (blockencoder_update_unlinked_f *)LZ4_compress_limitedOutput_withState, */
 };
 
@@ -535,7 +535,7 @@ typedef int aux_lz4_encoder_f(const char *src, char *dest, int srcsize, int maxs
  *
  * level を指定した場合、より圧縮処理に時間を掛けて圧縮効率を高めることが出来ます。
  *
- * 実装の都合上、圧縮関数は LZ4_compress_limitedOutput / LZ4_compressHC2_limitedOutput が使われます。
+ * 実装の都合上、圧縮関数は LZ4_compress_fast / LZ4_compress_HC が使われます。
  *
  * [INFECTION]
  *      +dest+ <- +src+
@@ -583,7 +583,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
         encoder = LZ4_compress_fast;
         level = -level;
     } else {
-        encoder = LZ4_compressHC2_limitedOutput;
+        encoder = LZ4_compress_HC;
     }
 
     size_t srcsize = RSTRING_LEN(src);
