@@ -149,7 +149,7 @@ static inline int
 fenc_init_args_blocksize(size_t size)
 {
     if (size == 0) {
-        return LZ4F_max4MB;
+        return LZ4F_default;
     } else if (size <= 64 * 1024) {
         return LZ4F_max64KB;
     } else if (size <= 256 * 1024) {
@@ -182,11 +182,11 @@ fenc_init_args(int argc, VALUE argv[], VALUE *outport, LZ4F_preferences_t *prefs
                 RBX_SCANHASH_ARGS("blocklink", &blocklink, Qfalse),
                 RBX_SCANHASH_ARGS("checksum", &checksum, Qtrue));
         // prefs->autoFlush = TODO;
-        prefs->frameInfo.blockSizeID = NIL_P(blocksize) ? LZ4F_max4MB : fenc_init_args_blocksize(NUM2INT(blocksize));
+        prefs->frameInfo.blockSizeID = NIL_P(blocksize) ? LZ4F_default : fenc_init_args_blocksize(NUM2INT(blocksize));
         prefs->frameInfo.blockMode = RTEST(blocklink) ? LZ4F_blockLinked : LZ4F_blockIndependent;
         prefs->frameInfo.contentChecksumFlag = RTEST(checksum) ? LZ4F_contentChecksumEnabled : LZ4F_noContentChecksum;
     } else {
-        prefs->frameInfo.blockSizeID = LZ4F_max4MB;
+        prefs->frameInfo.blockSizeID = LZ4F_default;
         prefs->frameInfo.blockMode = LZ4F_blockIndependent;
         prefs->frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
     }
