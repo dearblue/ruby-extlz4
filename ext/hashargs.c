@@ -105,7 +105,7 @@ rbx_scanhash_setdefaults(struct rbx_scanhash_arg *args, struct rbx_scanhash_arg 
     for (; args < end; args ++) {
         if (args->dest) {
             *args->dest = args->initval;
-        }   
+        }
     }
 }
 
@@ -119,7 +119,7 @@ rbx_scanhash_check_missingkeys(struct rbx_scanhash_arg *args, struct rbx_scanhas
             rb_raise(rb_eArgError,
                     "missing keyword: `%s'",
                     StringValueCStr(key));
-        }   
+        }
     }
 }
 

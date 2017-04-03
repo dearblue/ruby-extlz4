@@ -7,11 +7,11 @@
 RDOCFAKE(mLZ4 = rb_define_module("LZ4"));
 
 #if __GNUC__ || __clang__ || EXTLZ4_FORCE_EXPECT
-#define AUX_LIKELY(x)	__builtin_expect(!!(x), 1)
-#define AUX_UNLIKELY(x)	__builtin_expect(!!(x), 0)
+#define AUX_LIKELY(x)   __builtin_expect(!!(x), 1)
+#define AUX_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-#define AUX_LIKELY(x)	(x)
-#define AUX_UNLIKELY(x)	(x)
+#define AUX_LIKELY(x)   (x)
+#define AUX_UNLIKELY(x) (x)
 #endif
 
 static inline size_t

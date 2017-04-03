@@ -249,7 +249,7 @@ module LZ4
       @buf = "".force_encoding(Encoding::BINARY)
 
       header = [MAGIC_NUMBER].pack("V")
-      sd = VERSION_NUMBER | 
+      sd = VERSION_NUMBER |
            (@block_dependency ? 0 : BLOCK_INDEPENDENCY) |
            (@block_checksum ? BLOCK_CHECKSUM : 0) |
            (false ? STREAM_SIZE : 0) |

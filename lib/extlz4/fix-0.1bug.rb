@@ -48,7 +48,7 @@ module LZ4
 
       while true
         yield("reading block", @io.pos, total) if canyield
- 
+
         flags = @io.read(4).unpack("V")[0]
         iscomp = (flags >> 31) == 0 ? true : false
         blocksize = flags & 0x7fffffff
