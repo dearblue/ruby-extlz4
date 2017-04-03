@@ -17,8 +17,7 @@ EOS
   s.author = "dearblue"
   s.email = "dearblue@users.noreply.github.com"
 
-  s.required_ruby_version = ">= 2.0"
-  s.add_development_dependency "rake", "~> 10.0"
+  s.add_development_dependency "rake", "~> 12"
 end
 
 contrib = FileList["contrib/**/*"]
