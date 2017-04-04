@@ -968,6 +968,7 @@ init_blockdecoder(void)
     rb_define_alias(cBlockDecoder, "decode", "update");
     rb_define_alias(cBlockDecoder, "decompress", "update");
     rb_define_alias(cBlockDecoder, "uncompress", "update");
+    rb_define_alias(cBlockDecoder, "free", "release");
 
     rb_define_singleton_method(cBlockDecoder, "scansize", blkdec_s_scansize, 1);
     rb_define_singleton_method(cBlockDecoder, "linksize", blkdec_s_linksize, 1);
