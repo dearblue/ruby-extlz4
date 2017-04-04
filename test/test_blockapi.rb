@@ -3,7 +3,7 @@
 require "test-unit"
 require "extlz4"
 
-require_relative "sampledata"
+require_relative "common"
 
 class TestBlockAPI < Test::Unit::TestCase
   SAMPLES.each_pair do |name, data|

@@ -31,7 +31,7 @@
 require "test-unit"
 require "extlz4"
 
-require_relative "sampledata"
+require_relative "common"
 
 class TestFrameAPI < Test::Unit::TestCase
   SAMPLES.each_pair do |name, data|
