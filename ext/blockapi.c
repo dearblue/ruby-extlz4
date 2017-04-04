@@ -210,7 +210,7 @@ blockprocess_args(int argc, VALUE argv[], VALUE *src, VALUE *dest, size_t *maxsi
  */
 
 typedef void blockencoder_reset_f(void *context, int level);
-typedef void *blockencoder_create_f(int level);
+typedef void *blockencoder_create_f(void);
 typedef int blockencoder_free_f(void *context);
 typedef int blockencoder_loaddict_f(void *context, const char *dict, int dictsize);
 typedef int blockencoder_savedict_f(void *context, char *dict, int dictsize);
@@ -239,7 +239,7 @@ static int
 aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
 {
     (void)acceleration__ignored__;
-    return LZ4_compress_HC_continue(context, src, dest, srcsize, destsize);
+    return LZ4_compress_HC_continue((LZ4_streamHC_t *)context, src, dest, srcsize, destsize);
 }
 
 static const struct blockencoder_traits blockencoder_traits_std = {
@@ -353,15 +353,17 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
         p->predict = make_predict(p->predict);
     }
 
-    p->context = p->traits->create(p->level);
+    p->context = p->traits->create();
     if (!p->context) {
         rb_gc();
-        p->context = p->traits->create(p->level);
+        p->context = p->traits->create();
         if (!p->context) {
             errno = ENOMEM;
             rb_sys_fail("failed context allocation by LZ4_createStream()");
         }
     }
+
+    p->traits->reset(p->context, p->level);
 }
 
 /*
@@ -393,7 +395,7 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
     }
 
     blkenc_setup(argc, argv, p);
-    p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
+    //p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
     if (p->predict == Qundef) {
         p->predict = Qnil;
     } else if (!NIL_P(p->predict)) {
@@ -429,7 +431,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
                 "destsize too small (given destsize is %zu)",
                 rb_str_capacity(dest));
     }
-    p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
+    //p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
     rb_str_set_len(dest, s);
     return dest;
 }
