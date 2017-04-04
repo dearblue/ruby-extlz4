@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
-extern VALUE mLZ4;      /* module LZ4 */
-extern VALUE eError;    /* class LZ4::Error < ::RuntimeError */
+extern VALUE extlz4_mLZ4;      /* module LZ4 */
+extern VALUE extlz4_eError;    /* class LZ4::Error < ::RuntimeError */
 
 extern void extlz4_init_blockapi(void);
 extern void extlz4_init_frameapi(void);

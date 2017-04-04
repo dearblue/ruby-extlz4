@@ -1,7 +1,7 @@
 #include "extlz4.h"
 #include <lz4.h>
 
-VALUE eError;
+VALUE extlz4_eError;
 
 /*
  * version information
@@ -35,12 +35,12 @@ libver_to_s(VALUE ver)
  * initialize library
  */
 
-VALUE mLZ4;
+VALUE extlz4_mLZ4;
 
 void
 Init_extlz4(void)
 {
-    mLZ4 = rb_define_module("LZ4");
+    extlz4_mLZ4 = rb_define_module("LZ4");
 
     /*
      * Document-const: LZ4::LIBVERSION
@@ -60,9 +60,9 @@ Init_extlz4(void)
     rb_define_singleton_method(ver, "release", libver_release, 0);
     rb_define_singleton_method(ver, "to_s", libver_to_s, 0);
     rb_obj_freeze(ver);
-    rb_define_const(mLZ4, "LIBVERSION", ver);
+    rb_define_const(extlz4_mLZ4, "LIBVERSION", ver);
 
-    eError = rb_define_class_under(mLZ4, "Error", rb_eRuntimeError);
+    extlz4_eError = rb_define_class_under(extlz4_mLZ4, "Error", rb_eRuntimeError);
 
     extlz4_init_blockapi();
     extlz4_init_frameapi();

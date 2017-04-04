@@ -28,7 +28,7 @@ static inline void
 aux_lz4f_check_error(size_t err)
 {
     if (LZ4F_isError(err)) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                  "%s (0x%04x)",
                  LZ4F_getErrorName(err), -(int)err);
     }
@@ -484,7 +484,7 @@ fdec_init(int argc, VALUE argv[], VALUE dec)
         aux_read(inport, s, p->readbuf);
         aux_str_getmem(p->readbuf, &readp, &readsize);
         if (!readp || readsize < s) {
-            rb_raise(eError, "read error (or already EOF)");
+            rb_raise(extlz4_eError, "read error (or already EOF)");
         }
         s = LZ4F_decompress(p->decoder, NULL, &zero, readp, &readsize, NULL);
         aux_lz4f_check_error(s);
@@ -534,7 +534,7 @@ fdec_read_fetch(VALUE dec, struct decoder *p)
         size_t readsize;
         aux_str_getmem(v, &readp, &readsize);
         if (!readp) {
-            rb_raise(eError,
+            rb_raise(extlz4_eError,
                     "read error - encounted invalid EOF - #<%s:%p>",
                     rb_obj_classname(p->inport), (void *)p->inport);
         }
@@ -713,7 +713,7 @@ extlz4_init_frameapi(void)
     id_op_lshift = rb_intern("<<");
     id_read = rb_intern("read");
 
-    VALUE cEncoder = rb_define_class_under(mLZ4, "Encoder", rb_cObject);
+    VALUE cEncoder = rb_define_class_under(extlz4_mLZ4, "Encoder", rb_cObject);
     rb_define_alloc_func(cEncoder, fenc_alloc);
     rb_define_method(cEncoder, "initialize", RUBY_METHOD_FUNC(fenc_init), -1);
     rb_define_method(cEncoder, "write", RUBY_METHOD_FUNC(fenc_write), -1);
@@ -729,7 +729,7 @@ extlz4_init_frameapi(void)
     rb_define_method(cEncoder, "prefs_checksum", RUBY_METHOD_FUNC(fenc_prefs_checksum), 0);
     rb_define_method(cEncoder, "inspect", RUBY_METHOD_FUNC(fenc_inspect), 0);
 
-    VALUE cDecoder = rb_define_class_under(mLZ4, "Decoder", rb_cObject);
+    VALUE cDecoder = rb_define_class_under(extlz4_mLZ4, "Decoder", rb_cObject);
     rb_define_alloc_func(cDecoder, fdec_alloc);
     rb_define_method(cDecoder, "initialize", RUBY_METHOD_FUNC(fdec_init), -1);
     rb_define_method(cDecoder, "read", RUBY_METHOD_FUNC(fdec_read), -1);

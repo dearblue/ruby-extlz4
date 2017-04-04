@@ -4,7 +4,7 @@
 
 #define RDOCFAKE(code)
 
-RDOCFAKE(mLZ4 = rb_define_module("LZ4"));
+RDOCFAKE(extlz4_mLZ4 = rb_define_module("LZ4"));
 
 #if __GNUC__ || __clang__ || EXTLZ4_FORCE_EXPECT
 #define AUX_LIKELY(x)   __builtin_expect(!!(x), 1)
@@ -25,7 +25,7 @@ aux_lz4_expandsize(const char **p, const char *end, size_t size)
         }
     }
 
-    rb_raise(eError, "encounted invalid end of sequence");
+    rb_raise(extlz4_eError, "encounted invalid end of sequence");
 }
 
 static inline size_t
@@ -63,7 +63,7 @@ aux_lz4_scanseq(const char *p, const char *end, size_t *linksize)
         }
 #if 0
         if (AUX_UNLIKELY(offset == 0)) {
-            rb_raise(eError, "offset is zero");
+            rb_raise(extlz4_eError, "offset is zero");
         }
 #endif
         s = token & 0x0f;
@@ -73,7 +73,7 @@ aux_lz4_scanseq(const char *p, const char *end, size_t *linksize)
         size += s + 4;
     }
 
-    rb_raise(eError, "encounted invalid end of sequence");
+    rb_raise(extlz4_eError, "encounted invalid end of sequence");
 }
 
 /*
@@ -327,7 +327,7 @@ encoder_context(VALUE enc)
 {
     struct blockencoder *p = getencoder(enc);
     if (!p->context) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                 "not initialized yet - #<%s:%p>",
                 rb_obj_classname(enc), (void *)enc);
     }
@@ -413,7 +413,7 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
 {
     struct blockencoder *p = getencoder(enc);
     if (p->context) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                 "already initialized - #<%s:%p>",
                 rb_obj_classname(enc), (void *)enc);
     }
@@ -446,7 +446,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     RSTRING_GETMEM(src, srcp, srcsize);
     int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize, p->level);
     if (s <= 0) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                 "destsize too small (given destsize is %zu)",
                 rb_str_capacity(dest));
     }
@@ -626,7 +626,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
 
     size_t srcsize = RSTRING_LEN(src);
     if (srcsize > LZ4_MAX_INPUT_SIZE) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                  "source size is too big for lz4 encode (given %zu, but max %zu bytes)",
                  srcsize, (size_t)LZ4_MAX_INPUT_SIZE);
     }
@@ -636,7 +636,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
 
     int size = encoder(RSTRING_PTR(src), RSTRING_PTR(dest), srcsize, maxsize, level);
     if (size <= 0) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                  "failed LZ4 compress - maxsize is too small, or out of memory");
     }
 
@@ -648,7 +648,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
 static void
 init_blockencoder(void)
 {
-    VALUE cBlockEncoder = rb_define_class_under(mLZ4, "BlockEncoder", rb_cObject);
+    VALUE cBlockEncoder = rb_define_class_under(extlz4_mLZ4, "BlockEncoder", rb_cObject);
     rb_define_alloc_func(cBlockEncoder, blkenc_alloc);
     rb_define_method(cBlockEncoder, "initialize", RUBY_METHOD_FUNC(blkenc_init), -1);
     rb_define_method(cBlockEncoder, "reset", RUBY_METHOD_FUNC(blkenc_reset), -1);
@@ -665,15 +665,15 @@ init_blockencoder(void)
     rb_define_singleton_method(cBlockEncoder, "encode", blkenc_s_encode, -1);
     rb_define_alias(rb_singleton_class(cBlockEncoder), "compress", "encode");
 
-    rb_define_const(mLZ4, "LZ4HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
-    rb_define_const(mLZ4, "LZ4HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
-    rb_define_const(mLZ4, "LZ4HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
-    rb_define_const(mLZ4, "LZ4HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
+    rb_define_const(extlz4_mLZ4, "LZ4HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
+    rb_define_const(extlz4_mLZ4, "LZ4HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
+    rb_define_const(extlz4_mLZ4, "LZ4HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
+    rb_define_const(extlz4_mLZ4, "LZ4HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
 
-    rb_define_const(mLZ4, "HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
-    rb_define_const(mLZ4, "HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
-    rb_define_const(mLZ4, "HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
-    rb_define_const(mLZ4, "HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
+    rb_define_const(extlz4_mLZ4, "HC_CLEVEL_MIN", INT2FIX(LZ4HC_CLEVEL_MIN));
+    rb_define_const(extlz4_mLZ4, "HC_CLEVEL_DEFAULT", INT2FIX(LZ4HC_CLEVEL_DEFAULT));
+    rb_define_const(extlz4_mLZ4, "HC_CLEVEL_OPT_MIN", INT2FIX(LZ4HC_CLEVEL_OPT_MIN));
+    rb_define_const(extlz4_mLZ4, "HC_CLEVEL_MAX", INT2FIX(LZ4HC_CLEVEL_MAX));
 }
 
 /*
@@ -837,7 +837,7 @@ static VALUE
 blkdec_update(int argc, VALUE argv[], VALUE dec)
 {
     struct blockdecoder *p = getdecoder(dec);
-    if (!p->context) { rb_raise(eError, "need reset (context not initialized)"); }
+    if (!p->context) { rb_raise(extlz4_eError, "need reset (context not initialized)"); }
     VALUE src, dest;
     size_t maxsize;
     blockprocess_args(argc, argv, &src, &dest, &maxsize, NULL, aux_lz4_scansize);
@@ -849,7 +849,7 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     LZ4_setStreamDecode(p->context, p->dictbuf, p->dictsize);
     int s = LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize);
     if (s < 0) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                 "`max_dest_size' too small, or corrupt lz4'd data");
     }
     rb_str_set_len(dest, s);
@@ -949,7 +949,7 @@ blkdec_s_decode(int argc, VALUE argv[], VALUE lz4)
 
     int size = LZ4_decompress_safe(RSTRING_PTR(src), RSTRING_PTR(dest), RSTRING_LEN(src), maxsize);
     if (size < 0) {
-        rb_raise(eError,
+        rb_raise(extlz4_eError,
                  "failed LZ4_decompress_safe - max_dest_size is too small, or data is corrupted");
     }
 
@@ -961,7 +961,7 @@ blkdec_s_decode(int argc, VALUE argv[], VALUE lz4)
 static void
 init_blockdecoder(void)
 {
-    VALUE cBlockDecoder = rb_define_class_under(mLZ4, "BlockDecoder", rb_cObject);
+    VALUE cBlockDecoder = rb_define_class_under(extlz4_mLZ4, "BlockDecoder", rb_cObject);
     rb_define_alloc_func(cBlockDecoder, blkdec_alloc);
     rb_define_method(cBlockDecoder, "initialize", RUBY_METHOD_FUNC(blkdec_init), -1);
     rb_define_method(cBlockDecoder, "reset", RUBY_METHOD_FUNC(blkdec_reset), -1);
