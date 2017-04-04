@@ -367,6 +367,8 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
     if (!NIL_P(p->predict)) {
         p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
     }
+
+    p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
 }
 
 /*
@@ -398,7 +400,6 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
     }
 
     blkenc_setup(argc, argv, p, Qnil);
-    //p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
 
     return enc;
 }
@@ -423,13 +424,13 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
-    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, rb_str_capacity(dest), p->level);
+    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize, p->level);
     if (s <= 0) {
         rb_raise(eError,
                 "destsize too small (given destsize is %zu)",
                 rb_str_capacity(dest));
     }
-    //p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
+    p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
     rb_str_set_len(dest, s);
     return dest;
 }
