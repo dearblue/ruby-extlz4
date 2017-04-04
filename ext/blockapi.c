@@ -323,7 +323,7 @@ getencoder(VALUE enc)
 }
 
 static inline void
-blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
+blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
 {
     if (p->context) {
         void *cx = p->context;
@@ -347,12 +347,6 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
         }
     }
 
-    if (argc < 2) {
-        p->predict = Qundef;
-    } else {
-        p->predict = make_predict(p->predict);
-    }
-
     p->context = p->traits->create();
     if (!p->context) {
         rb_gc();
@@ -364,6 +358,16 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p)
     }
 
     p->traits->reset(p->context, p->level);
+
+    if (argc < 2) {
+        p->predict = predict;
+    } else {
+        p->predict = make_predict(p->predict);
+    }
+
+    if (!NIL_P(p->predict)) {
+        p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
+    }
 }
 
 /*
@@ -394,13 +398,8 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
                 rb_obj_classname(enc), (void *)enc);
     }
 
-    blkenc_setup(argc, argv, p);
+    blkenc_setup(argc, argv, p, Qnil);
     //p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
-    if (p->predict == Qundef) {
-        p->predict = Qnil;
-    } else if (!NIL_P(p->predict)) {
-        p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
-    }
 
     return enc;
 }
@@ -456,15 +455,7 @@ blkenc_reset(int argc, VALUE argv[], VALUE enc)
                 rb_obj_classname(enc), (void *)enc);
     }
 
-    VALUE predict = p->predict;
-    blkenc_setup(argc, argv, p);
-    if (p->predict == Qundef) {
-        p->predict = predict;
-    }
-
-    if (!NIL_P(p->predict)) {
-        p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
-    }
+    blkenc_setup(argc, argv, p, p->predict);
 
     return enc;
 }
