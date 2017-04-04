@@ -7,30 +7,32 @@ require_relative "sampledata"
 
 class TestBlockAPI < Test::Unit::TestCase
   SAMPLES.each_pair do |name, data|
-    [-20, -10, -5, -1, nil, 0, 1, 5, 9].each do |level|
+    [-20, -10, -1, nil, 0, 1, 9].each do |level|
       define_method("test_block_encode_decode_sample:#{name}:level=#{level.inspect}", -> {
         assert(data, LZ4.block_decode(LZ4.block_encode(level, data)))
       })
 
-      define_method("test_streaming_block_encode_decode:#{name}:level=#{level.inspect}", -> {
-        lz4 = LZ4.block_stream_encode level
-        input = StringIO.new(data)
-        buf = "".b
-        blocks = []
-        input.size.times do |size|
-          break unless input.read((1 << size) + 1, buf)
-          blocks << lz4.update(buf)
-        end
-        lz4.free
+      [[], [data]].each do |opt_dict|
+        define_method("test_streaming_block_encode_decode:#{name}:level=#{level.inspect}#{opt_dict.empty? ? nil : ":with predict"}", -> {
+          lz4 = LZ4.block_stream_encode level, *opt_dict
+          input = StringIO.new(data)
+          buf = "".b
+          blocks = []
+          input.size.times do |size|
+            break unless input.read((1 << size) + 1, buf)
+            blocks << lz4.update(buf)
+          end
+          lz4.free
 
-        #lz4 = LZ4.block_stream_decode
-        #data1 = "".b
-        #blocks.each do |b|
-        #  data1 << lz4.update(b)
-        #end
+          lz4 = LZ4.block_stream_decode *opt_dict
+          data1 = "".b
+          blocks.each do |b|
+            data1 << lz4.update(b)
+          end
 
-        #assert(data, data1)
-      })
+          assert(data, data1)
+        })
+      end
     end
   end
 
