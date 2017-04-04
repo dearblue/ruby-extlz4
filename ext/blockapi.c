@@ -676,6 +676,8 @@ struct blockdecoder
 {
     void *context;
     VALUE predict;
+    size_t dictsize;
+    char dictbuf[64 * 1024];
 };
 
 static void
@@ -756,15 +758,16 @@ blkdec_setup(int argc, VALUE argv[], VALUE predict, struct blockdecoder *p)
     }
 
     if (!NIL_P(predict)) {
-        if (LZ4_setStreamDecode(p->context, RSTRING_PTR(predict), RSTRING_LEN(predict)) == 0) {
-            rb_raise(eError,
-                    "failed LZ4_setStreamDecode() with preset dictionary");
+        const char *pdp;
+        RSTRING_GETMEM(predict, pdp, p->dictsize);
+        if (p->dictsize > sizeof(p->dictbuf)) {
+            pdp += p->dictsize - sizeof(p->dictbuf);
+            p->dictsize = sizeof(p->dictbuf);
         }
+
+        memcpy(p->dictbuf, pdp, p->dictsize);
     } else {
-        if (LZ4_setStreamDecode(p->context, NULL, 0) == 0) {
-            rb_raise(eError,
-                    "failed LZ4_setStreamDecode()");
-        }
+        p->dictsize = 0;
     }
 }
 
@@ -835,12 +838,30 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     const char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
+    LZ4_setStreamDecode(p->context, p->dictbuf, p->dictsize);
     int s = LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize);
     if (s < 0) {
         rb_raise(eError,
                 "`max_dest_size' too small, or corrupt lz4'd data");
     }
     rb_str_set_len(dest, s);
+
+    /* copy prefix */
+    if (s < sizeof(p->dictbuf)) {
+        ssize_t discard = (p->dictsize + s) - sizeof(p->dictbuf);
+        if (discard > 0) {
+            size_t remain = p->dictsize - discard;
+            memmove(p->dictbuf, (const char *)(p->dictbuf + discard), remain);
+            p->dictsize = remain;
+        }
+
+        memcpy(p->dictbuf + p->dictsize, RSTRING_PTR(dest), s);
+        p->dictsize += s;
+    } else {
+        memcpy(p->dictbuf, RSTRING_END(dest) - sizeof(p->dictbuf), sizeof(p->dictbuf));
+        p->dictsize = sizeof(p->dictbuf);
+    }
+
     return dest;
 }
 
