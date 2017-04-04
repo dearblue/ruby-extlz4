@@ -505,23 +505,21 @@ blkenc_savedict(int argc, VALUE argv[], VALUE enc)
 
     VALUE dict;
     if (argc == 0) {
-        dict = rb_str_buf_new(64 * 1024);
+        dict = rb_str_buf_new(p->prefixsize);
     } else if (argc == 1) {
         dict = argv[0];
-        aux_str_reserve(dict, 64 * 1024);
+        aux_str_reserve(dict, p->prefixsize);
     } else {
         rb_error_arity(argc, 0, 1);
     }
 
-    int size = p->traits->savedict(p->context, RSTRING_PTR(dict), rb_str_capacity(dict));
-    if (size > 0) {
-        rb_str_set_len(dict, size);
+    memcpy(RSTRING_PTR(dict), p->prefix, p->prefixsize);
+    if (p->prefixsize > 0) {
+        rb_str_set_len(dict, p->prefixsize);
         rb_obj_infect(dict, enc);
         return dict;
-    } else if (size == 0) {
-        return Qnil;
     } else {
-        rb_raise(eError, "failed LZ4_saveDict()");
+        return Qnil;
     }
 }
 
