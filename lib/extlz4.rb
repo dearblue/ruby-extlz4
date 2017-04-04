@@ -296,10 +296,12 @@ module LZ4
   #
   def self.block_stream_encode(*args)
     lz4 = BlockEncoder.new(*args)
-    if block_given?
+    return lz4 unless block_given?
+
+    begin
       yield(lz4)
-    else
-      lz4
+    ensure
+      lz4.release rescue nil
     end
   end
 
@@ -308,10 +310,12 @@ module LZ4
   #
   def self.block_stream_decode(*args)
     lz4 = BlockDecoder.new(*args)
-    if block_given?
+    return lz4 unless block_given?
+
+    begin
       yield(lz4)
-    else
-      lz4
+    rescue
+      lz4.release rescue nil
     end
   end
 
