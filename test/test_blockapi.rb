@@ -29,6 +29,7 @@ class TestBlockAPI < Test::Unit::TestCase
           blocks.each do |b|
             data1 << lz4.update(b)
           end
+          lz4.free
 
           assert(data, data1)
         })
