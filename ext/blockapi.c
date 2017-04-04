@@ -406,6 +406,7 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
     }
 
     blkenc_setup(argc, argv, p, Qnil);
+    rb_obj_infect(enc, p->predict);
 
     return enc;
 }
@@ -462,6 +463,7 @@ blkenc_reset(int argc, VALUE argv[], VALUE enc)
     }
 
     blkenc_setup(argc, argv, p, p->predict);
+    rb_obj_infect(enc, p->predict);
 
     return enc;
 }
@@ -791,7 +793,7 @@ blkdec_init(int argc, VALUE argv[], VALUE dec)
     struct blockdecoder *p = getdecoder(dec);
 
     blkdec_setup(argc, argv, Qnil, p);
-    rb_obj_infect(p->predict, dec);
+    rb_obj_infect(dec, p->predict);
 
     return dec;
 }
@@ -810,7 +812,7 @@ blkdec_reset(int argc, VALUE argv[], VALUE dec)
     struct blockdecoder *p = getdecoder(dec);
 
     blkdec_setup(argc, argv, p->predict, p);
-    rb_obj_infect(p->predict, dec);
+    rb_obj_infect(dec, p->predict);
 
     return dec;
 }
