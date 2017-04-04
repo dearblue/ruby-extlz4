@@ -7,9 +7,31 @@ require_relative "sampledata"
 
 class TestBlockAPI < Test::Unit::TestCase
   SAMPLES.each_pair do |name, data|
-    define_method("test_block_encode_decode_sample:#{name}", -> {
-      assert(data, LZ4.block_decode(LZ4.block_encode(data)))
-    })
+    [-20, -10, -5, -1, nil, 0, 1, 5, 9].each do |level|
+      define_method("test_block_encode_decode_sample:#{name}:level=#{level.inspect}", -> {
+        assert(data, LZ4.block_decode(LZ4.block_encode(level, data)))
+      })
+
+      define_method("test_streaming_block_encode_decode:#{name}:level=#{level.inspect}", -> {
+        lz4 = LZ4.block_stream_encode level
+        input = StringIO.new(data)
+        buf = "".b
+        blocks = []
+        input.size.times do |size|
+          break unless input.read((1 << size) + 1, buf)
+          blocks << lz4.update(buf)
+        end
+        lz4.free
+
+        lz4 = LZ4.block_stream_decode
+        data1 = "".b
+        blocks.each do |b|
+          data1 << lz4.update(b)
+        end
+
+        assert(data, data1)
+      })
+    end
   end
 
   def test_block_encode
