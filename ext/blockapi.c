@@ -322,6 +322,19 @@ getencoder(VALUE enc)
     return getref(enc, &blockencoder_type);
 }
 
+static inline struct blockencoder *
+encoder_context(VALUE enc)
+{
+    struct blockencoder *p = getencoder(enc);
+    if (!p->context) {
+        rb_raise(eError,
+                "not initialized yet - #<%s:%p>",
+                rb_obj_classname(enc), (void *)enc);
+    }
+
+    return p;
+}
+
 static inline void
 blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
 {
@@ -422,7 +435,7 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
 static VALUE
 blkenc_update(int argc, VALUE argv[], VALUE enc)
 {
-    struct blockencoder *p = getencoder(enc);
+    struct blockencoder *p = encoder_context(enc);
     VALUE src, dest;
     size_t maxsize;
     blockprocess_args(argc, argv, &src, &dest, &maxsize, NULL, aux_lz4_compressbound);
@@ -455,13 +468,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
 static VALUE
 blkenc_reset(int argc, VALUE argv[], VALUE enc)
 {
-    struct blockencoder *p = getencoder(enc);
-    if (!p->context) {
-        rb_raise(eError,
-                "not initialized yet - #<%s:%p>",
-                rb_obj_classname(enc), (void *)enc);
-    }
-
+    struct blockencoder *p = encoder_context(enc);
     blkenc_setup(argc, argv, p, p->predict);
     rb_obj_infect(enc, p->predict);
 
@@ -496,14 +503,9 @@ blkenc_predict(VALUE enc)
 static VALUE
 blkenc_savedict(int argc, VALUE argv[], VALUE enc)
 {
-    struct blockencoder *p = getencoder(enc);
-    if (!p->context) {
-        rb_raise(eError,
-                "not initialized yet - #<%s:%p>",
-                rb_obj_classname(enc), (void *)enc);
-    }
-
+    struct blockencoder *p = encoder_context(enc);
     VALUE dict;
+
     if (argc == 0) {
         dict = rb_str_buf_new(p->prefixsize);
     } else if (argc == 1) {
