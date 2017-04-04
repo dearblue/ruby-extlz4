@@ -364,7 +364,13 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
 
     p->traits->reset(p->context, p->level);
 
-    if (!NIL_P(p->predict)) {
+    if (NIL_P(p->predict)) {
+        p->traits->loaddict(p->context, NULL, 0);
+    } else {
+        /*
+         * NOTE: すぐ下で LZ4_saveDict() を実行するため、
+         * NOTE: p->predict のバッファ領域が保持されることはない。
+         */
         p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
     }
 
