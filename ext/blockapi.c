@@ -489,6 +489,43 @@ blkenc_predict(VALUE enc)
     return getencoder(enc)->predict;
 }
 
+/*
+ * call-seq:
+ *  savedict -> dict or nil
+ *  savedict(buf) -> buf or nil
+ */
+static VALUE
+blkenc_savedict(int argc, VALUE argv[], VALUE enc)
+{
+    struct blockencoder *p = getencoder(enc);
+    if (!p->context) {
+        rb_raise(eError,
+                "not initialized yet - #<%s:%p>",
+                rb_obj_classname(enc), (void *)enc);
+    }
+
+    VALUE dict;
+    if (argc == 0) {
+        dict = rb_str_buf_new(64 * 1024);
+    } else if (argc == 1) {
+        dict = argv[0];
+        aux_str_reserve(dict, 64 * 1024);
+    } else {
+        rb_error_arity(argc, 0, 1);
+    }
+
+    int size = p->traits->savedict(p->context, RSTRING_PTR(dict), rb_str_capacity(dict));
+    if (size > 0) {
+        rb_str_set_len(dict, size);
+        rb_obj_infect(dict, enc);
+        return dict;
+    } else if (size == 0) {
+        return Qnil;
+    } else {
+        rb_raise(eError, "failed LZ4_saveDict()");
+    }
+}
+
 static VALUE
 blkenc_inspect(VALUE enc)
 {
@@ -619,6 +656,7 @@ init_blockencoder(void)
     rb_define_method(cBlockEncoder, "update", RUBY_METHOD_FUNC(blkenc_update), -1);
     rb_define_method(cBlockEncoder, "release", RUBY_METHOD_FUNC(blkenc_release), 0);
     rb_define_method(cBlockEncoder, "predict", RUBY_METHOD_FUNC(blkenc_predict), 0);
+    rb_define_method(cBlockEncoder, "savedict", RUBY_METHOD_FUNC(blkenc_savedict), -1);
     rb_define_method(cBlockEncoder, "inspect", RUBY_METHOD_FUNC(blkenc_inspect), 0);
     rb_define_alias(cBlockEncoder, "encode", "update");
     rb_define_alias(cBlockEncoder, "compress", "update");
