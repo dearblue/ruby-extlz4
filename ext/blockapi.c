@@ -325,26 +325,31 @@ getencoder(VALUE enc)
 static inline void
 blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
 {
+    rb_check_arity(argc, 0, 2);
+
     if (p->context) {
         void *cx = p->context;
         p->context = NULL;
         p->traits->free(cx);
     }
 
-    VALUE level1;
-    rb_scan_args(argc, argv, "02", &level1, &p->predict);
-
-    if (NIL_P(level1)) {
+    if (argc == 0 || NIL_P(argv[0])) {
         p->level = 1;
         p->traits = &blockencoder_traits_std;
     } else {
-        p->level = NUM2UINT(level1);
+        p->level = NUM2UINT(argv[0]);
         if (p->level < 0) {
             p->traits = &blockencoder_traits_std;
             p->level = -p->level;
         } else {
             p->traits = &blockencoder_traits_hc;
         }
+    }
+
+    if (argc < 2) {
+        p->predict = predict;
+    } else {
+        p->predict = make_predict(argv[1]);
     }
 
     p->context = p->traits->create();
@@ -358,12 +363,6 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
     }
 
     p->traits->reset(p->context, p->level);
-
-    if (argc < 2) {
-        p->predict = predict;
-    } else {
-        p->predict = make_predict(p->predict);
-    }
 
     if (!NIL_P(p->predict)) {
         p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
