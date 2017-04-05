@@ -13,4 +13,4 @@ if RbConfig::CONFIG["arch"] =~ /mingw/
   $LDFLAGS << " -static-libgcc"
 end
 
-create_makefile("extlz4")
+create_makefile File.join(RUBY_VERSION[/\d+\.\d+/], "extlz4")

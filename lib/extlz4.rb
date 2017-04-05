@@ -2,17 +2,9 @@
 
 require "stringio"
 
-ver = RUBY_VERSION.slice(/\d+\.\d+/)
+ver = RUBY_VERSION[/\d+\.\d+/]
 soname = File.basename(__FILE__, ".rb") << ".so"
-lib = File.join(File.dirname(__FILE__), ver, soname)
-case
-when File.file?(lib)
-  require_relative File.join(ver, soname)
-when File.file?(File.join(File.dirname(__FILE__), ver))
-  require_relative soname
-else
-  require soname
-end
+require_relative File.join(ver, soname)
 
 require_relative "extlz4/version"
 
