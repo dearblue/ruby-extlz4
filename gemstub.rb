@@ -15,8 +15,12 @@ end
 end
 
 
+unmatch = %r(\bcontrib/lz4/(?:Makefile|appveyor\.yml|contrib|doc|examples|lib/Makefile|lib/dll|programs|tests|visual)(?:$|/))
+
+DOC.reject! { |e| e =~ unmatch }
+
 contrib = FileList["contrib/**/*"]
-contrib.reject! { |e| e =~ %r(\bcontrib/lz4/(?:Makefile|appveyor\.yml|contrib|doc|examples|lib/Makefile|lib/dll|programs|tests|visual)(?:$|/)) }
+contrib.reject! { |e| e =~ unmatch }
 EXTRA.concat(contrib)
 
 
