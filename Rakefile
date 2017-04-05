@@ -1,11 +1,14 @@
 
+require "pathname"
 require "rake/clean"
 
-DOC = FileList["{README,LICENSE,CHANGELOG,Changelog,HISTORY}{,.ja}{,.txt,.rd,.rdoc,.md,.markdown}"] +
-      FileList["{contrib,ext}/**/{README,LICENSE,CHANGELOG,Changelog,HISTORY}{,.ja}{,.txt,.rd,.rdoc,.md,.markdown}"] +
-      FileList["ext/**/*.{c,C,cc,cxx,cpp,h,H,hh}"]
-#EXT = FileList["ext/**/*.{h,hh,c,cc,cpp,cxx}"] +
-#      FileList["ext/externals/**/*"]
+docnames = "{README,LICENSE,CHANGELOG,Changelog,HISTORY}"
+doctypes = "{,.txt,.rd,.rdoc,.md,.markdown}"
+cexttypes = "{c,C,cc,cxx,cpp,h,H,hh}"
+
+DOC = FileList["#{docnames}{,.ja}#{doctypes}"] +
+      FileList["{contrib,ext}/**/#{docnames}{,.ja}#{doctypes}"] +
+      FileList["ext/**/*.#{cexttypes}"]
 EXT = FileList["ext/**/*"]
 BIN = FileList["bin/*"]
 LIB = FileList["lib/**/*.rb"]
@@ -15,17 +18,23 @@ EXAMPLE = FileList["examples/**/*"]
 GEMSTUB_SRC = "gemstub.rb"
 RAKEFILE = [File.basename(__FILE__), GEMSTUB_SRC]
 EXTRA = []
+EXTCONF = FileList["ext/**/extconf.rb"]
+EXTCONF.reject! { |n| !File.file?(n) }
+EXTMAP = {}
 
 load GEMSTUB_SRC
 
-EXTCONF = FileList["ext/extconf.rb"]
-EXTCONF.reject! { |n| !File.file?(n) }
+EXTMAP.dup.each_pair do |dir, name|
+  EXTMAP[Pathname.new(dir).cleanpath.to_s] = Pathname.new(name).cleanpath.to_s
+end
+
 GEMSTUB.extensions += EXTCONF
 GEMSTUB.executables += FileList["bin/*"].map { |n| File.basename n }
 GEMSTUB.executables.sort!
 
-GEMFILE = "#{GEMSTUB.name}-#{GEMSTUB.version}.gem"
-GEMSPEC = "#{GEMSTUB.name}.gemspec"
+PACKAGENAME = "#{GEMSTUB.name}-#{GEMSTUB.version}"
+GEMFILE = "#{PACKAGENAME}.gem"
+GEMSPEC = "#{PACKAGENAME}.gemspec"
 
 GEMSTUB.files += DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + EXTRA
 GEMSTUB.files.sort!
@@ -36,11 +45,27 @@ end
 GEMSTUB.extra_rdoc_files += DOC + LIB + EXT.reject { |n| n.include?("/externals/") || !%w(.h .hh .c .cc .cpp .cxx).include?(File.extname(n)) }
 GEMSTUB.extra_rdoc_files.sort!
 
-CLEAN << GEMSPEC
+GEMSTUB_TRYOUT = GEMSTUB.dup
+GEMSTUB_TRYOUT.version = "#{GEMSTUB.version}#{Time.now.strftime(".TRYOUT.%Y%m%d.%H%M%S")}"
+PACKAGENAME_TRYOUT = "#{GEMSTUB.name}-#{GEMSTUB_TRYOUT.version}"
+GEMFILE_TRYOUT = "#{PACKAGENAME_TRYOUT}.gem"
+GEMSPEC_TRYOUT = "#{PACKAGENAME_TRYOUT}.gemspec"
+
+CLEAN << GEMSPEC << GEMSPEC_TRYOUT
 CLOBBER << GEMFILE
 
-task :default => :all
+task :default => :tryout do
+  $stderr.puts <<-EOS
+#{__FILE__}:#{__LINE__}:
+\ttype ``rake release'' to build release package.
+  EOS
+end
 
+desc "build tryout package"
+task :tryout
+
+desc "build release package"
+task :release => :all
 
 unless EXTCONF.empty?
   RUBYSET ||= (ENV["RUBYSET"] || "").split(",")
@@ -53,24 +78,43 @@ unless EXTCONF.empty?
 | variable for set ruby interpreters by comma separated.
 |
 |   e.g.) $ rake RUBYSET=ruby
-|     or) $ rake RUBYSET=ruby20,ruby21,ruby22
+|     or) $ rake RUBYSET=ruby21,ruby22,ruby23
 |
     EOS
   else
-    platforms = RUBYSET.map { |ruby| `#{ruby} --disable gems -rrbconfig -e "puts RbConfig::CONFIG['arch']"`.chomp }
+    platforms = RUBYSET.map { |ruby| `#{ruby} --disable-gems -e "puts RUBY_PLATFORM"`.chomp }
     platforms1 = platforms.uniq
     unless platforms1.size == 1 && !platforms1[0].empty?
-      raise "different platforms (#{Hash[*RUBYSET.zip(platforms).flatten].inspect})"
+      abort <<-EOS
+#{__FILE__}:#{__LINE__}: different platforms:
+#{RUBYSET.zip(platforms).map { |ruby, platform| "%24s => %s" % [ruby, platform] }.join("\n")}
+ABORTED.
+      EOS
     end
     PLATFORM = platforms1[0]
 
     RUBY_VERSIONS = RUBYSET.map do |ruby|
-      ver = `#{ruby} --disable gem -rrbconfig -e "puts RbConfig::CONFIG['ruby_version']"`.slice(/\d+\.\d+/)
+      ver = `#{ruby} --disable-gems -e "puts RUBY_VERSION"`.slice(/\d+\.\d+/)
       raise "failed ruby checking - ``#{ruby}''" unless $?.success?
       [ver, ruby]
     end
-    SOFILES_SET = RUBY_VERSIONS.map { |(ver, ruby)| ["lib/#{ver}/#{GEMSTUB.name}.so", ruby] }
-    SOFILES = SOFILES_SET.map { |(lib, ruby)| lib }
+
+    SOFILES_SET = RUBY_VERSIONS.map { |(ver, ruby)|
+      EXTCONF.map { |extconf|
+        extdir = Pathname.new(extconf).cleanpath.dirname.to_s
+        case
+        when soname = EXTMAP[extdir.sub(/^ext\//i, "")]
+          soname = soname.sub(/\.so$/i, "")
+        when extdir == "ext" || extdir == "."
+          soname = GEMSTUB.name
+        else
+          soname = File.basename(extdir)
+        end
+
+        [ruby, File.join("lib", "#{soname.sub(/(?<=\/)|^(?!.*\/)/, "#{ver}/")}.so"), extconf]
+      }
+    }.flatten(1)
+    SOFILES = SOFILES_SET.map { |(ruby, sopath, extconf)| sopath }
 
     GEMSTUB_NATIVE = GEMSTUB.dup
     GEMSTUB_NATIVE.files += SOFILES
@@ -98,7 +142,7 @@ unless EXTCONF.empty?
     desc "build c-extension libraries"
     task "sofiles" => SOFILES
 
-    SOFILES_SET.each do |(soname, ruby)|
+    SOFILES_SET.each do |(ruby, soname, extconf)|
       sodir = File.dirname(soname)
       makefile = File.join(sodir, "Makefile")
 
@@ -108,9 +152,10 @@ unless EXTCONF.empty?
       directory sodir
 
       desc "generate Makefile for binary extension library"
-      file makefile => [sodir] + EXTCONF do
+      file makefile => [sodir, extconf] do
+        rel_extconf = Pathname.new(extconf).relative_path_from(Pathname.new(sodir)).to_s
         cd sodir do
-          sh "#{ruby} ../../#{EXTCONF[0]} \"--ruby=#{ruby}\""
+          sh *%W"#{ruby} #{rel_extconf} --ruby=#{ruby} #{ENV["EXTCONF"]}"
         end
       end
 
@@ -126,6 +171,7 @@ end
 
 
 task :all => GEMFILE
+task :tryout => GEMFILE_TRYOUT
 
 desc "generate local rdoc"
 task :rdoc => DOC + LIB do
@@ -143,10 +189,24 @@ task gem: GEMFILE
 desc "generate gemspec"
 task gemspec: GEMSPEC
 
+desc "print package name"
+task "package-name" do
+  puts PACKAGENAME
+end
+
 file GEMFILE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + [GEMSPEC] do
   sh "gem build #{GEMSPEC}"
 end
 
+file GEMFILE_TRYOUT => DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + [GEMSPEC_TRYOUT] do
+#file GEMFILE_TRYOUT do
+  sh "gem build #{GEMSPEC_TRYOUT}"
+end
+
 file GEMSPEC => RAKEFILE do
   File.write(GEMSPEC, GEMSTUB.to_ruby, mode: "wb")
+end
+
+file GEMSPEC_TRYOUT => RAKEFILE do
+  File.write(GEMSPEC_TRYOUT, GEMSTUB_TRYOUT.to_ruby, mode: "wb")
 end
