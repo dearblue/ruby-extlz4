@@ -439,10 +439,8 @@ aux_read(VALUE obj, size_t size, VALUE buf)
 {
     if (NIL_P(buf)) { buf = rb_str_buf_new(size); }
     if (NIL_P(AUX_FUNCALL(obj, id_read, SIZET2NUM(size), buf))) {
-//fprintf(stderr, "%s:%d:%s: buffer.size=nil\n", __FILE__, __LINE__, __func__);
         return Qnil;
     } else {
-//fprintf(stderr, "%s:%d:%s: buffer.size=%d\n", __FILE__, __LINE__, __func__, (int)RSTRING_LEN(buf));
         if (RSTRING_LEN(buf) > size) {
             rb_raise(rb_eRuntimeError, "most read (%d, but expected to %d)", (int)RSTRING_LEN(buf), (int)size);
         }
