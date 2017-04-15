@@ -37,7 +37,7 @@ libver_to_s(VALUE ver)
 
 VALUE extlz4_mLZ4;
 
-void
+RBEXT_API void
 Init_extlz4(void)
 {
     extlz4_mLZ4 = rb_define_module("LZ4");

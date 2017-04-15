@@ -1,3 +1,7 @@
+#if RBEXT_VISIBILITY
+#   define visibility(v) visibility("hidden")
+#endif
+
 #include "../contrib/lz4/lib/lz4.c"
 
 #define LZ4_isLittleEndian      amalg_LZ4_isLittleEndian
