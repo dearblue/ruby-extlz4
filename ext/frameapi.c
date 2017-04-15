@@ -122,6 +122,8 @@ encoder_free(void *pp)
     if (p->encoder) {
         LZ4F_freeCompressionContext(p->encoder);
     }
+    memset(p, 0, sizeof(*p));
+    xfree(p);
 }
 
 static const rb_data_type_t encoder_type = {
@@ -129,6 +131,7 @@ static const rb_data_type_t encoder_type = {
     .function.dmark = encoder_mark,
     .function.dfree = encoder_free,
     /* .function.dsize = encoder_size, */
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE
@@ -392,8 +395,10 @@ decoder_free(void *pp)
         LZ4F_freeDecompressionContext(p->decoder);
     }
     if (p->blockbuf) {
-        free(p->blockbuf);
+        xfree(p->blockbuf);
     }
+    memset(p, 0, sizeof(*p));
+    xfree(p);
 }
 
 static const rb_data_type_t decoder_type = {
@@ -401,6 +406,7 @@ static const rb_data_type_t decoder_type = {
     .function.dmark = decoder_mark,
     .function.dfree = decoder_free,
     /* .function.dsize = decoder_size, */
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE

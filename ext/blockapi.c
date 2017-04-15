@@ -286,8 +286,8 @@ blkenc_free(void *pp)
     if (p->context && p->traits) {
         p->traits->free(p->context);
     }
-    p->context = NULL;
-    p->traits = NULL;
+    memset(p, 0, sizeof(*p));
+    xfree(p);
 }
 
 static const rb_data_type_t blockencoder_type = {
@@ -295,6 +295,7 @@ static const rb_data_type_t blockencoder_type = {
     .function.dmark = blkenc_mark,
     .function.dfree = blkenc_free,
     /* .function.dsize = blkenc_size, */
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE
@@ -698,7 +699,8 @@ blkdec_free(void *pp)
     if (p->context) {
         LZ4_freeStreamDecode(p->context);
     }
-    p->context = NULL;
+    memset(p, 0, sizeof(*p));
+    xfree(p);
 }
 
 static const rb_data_type_t blockdecoder_type = {
@@ -706,6 +708,7 @@ static const rb_data_type_t blockdecoder_type = {
     .function.dmark = blkdec_mark,
     .function.dfree = blkdec_free,
     /* .function.dsize = blkdec_size, */
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY,
 };
 
 static VALUE
