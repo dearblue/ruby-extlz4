@@ -3,6 +3,39 @@
 
 require "mkmf"
 
+module MyExtensions
+  refine Object do
+    # ruby-2.3 から追加されたメソッドの確認と追加
+
+    unless Object.method_defined?(:append_cppflags)
+      def append_cppflags(flags)
+        return false unless try_cppflags(flags)
+        $CPPFLAGS << " #{flags}"
+        true
+      end
+    end
+
+    unless Object.method_defined?(:append_cflags)
+      def append_cflags(flags)
+        return false unless try_cflags(flags)
+        $CFLAGS << " #{flags}"
+        true
+      end
+    end
+
+    unless Object.method_defined?(:append_ldflags)
+      def append_ldflags(flags)
+        return false unless try_ldflags(flags)
+        $LDFLAGS << " #{flags}"
+        true
+      end
+    end
+  end
+end
+
+using MyExtensions
+
+
 # TODO: システムにインストールされた lz4 がある場合、バージョンを確認してより新しければそちらを利用する
 
 append_cppflags "-I$(srcdir)/../contrib/lz4/lib"
