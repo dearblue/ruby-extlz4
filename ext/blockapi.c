@@ -275,23 +275,19 @@ struct blockencoder
 static void
 blkenc_mark(void *pp)
 {
-    if (pp) {
-        struct blockencoder *p = pp;
-        rb_gc_mark(p->predict);
-    }
+    struct blockencoder *p = pp;
+    rb_gc_mark(p->predict);
 }
 
 static void
 blkenc_free(void *pp)
 {
-    if (pp) {
-        struct blockencoder *p = pp;
-        if (p->context && p->traits) {
-            p->traits->free(p->context);
-        }
-        p->context = NULL;
-        p->traits = NULL;
+    struct blockencoder *p = pp;
+    if (p->context && p->traits) {
+        p->traits->free(p->context);
     }
+    p->context = NULL;
+    p->traits = NULL;
 }
 
 static const rb_data_type_t blockencoder_type = {
@@ -691,22 +687,18 @@ struct blockdecoder
 static void
 blkdec_mark(void *pp)
 {
-    if (pp) {
-        struct blockdecoder *p = pp;
-        rb_gc_mark(p->predict);
-    }
+    struct blockdecoder *p = pp;
+    rb_gc_mark(p->predict);
 }
 
 static void
 blkdec_free(void *pp)
 {
-    if (pp) {
-        struct blockdecoder *p = pp;
-        if (p->context) {
-            LZ4_freeStreamDecode(p->context);
-        }
-        p->context = NULL;
+    struct blockdecoder *p = pp;
+    if (p->context) {
+        LZ4_freeStreamDecode(p->context);
     }
+    p->context = NULL;
 }
 
 static const rb_data_type_t blockdecoder_type = {

@@ -110,21 +110,17 @@ struct encoder
 static void
 encoder_mark(void *pp)
 {
-    if (pp) {
-        struct encoder *p = pp;
-        rb_gc_mark(p->outport);
-        rb_gc_mark(p->workbuf);
-    }
+    struct encoder *p = pp;
+    rb_gc_mark(p->outport);
+    rb_gc_mark(p->workbuf);
 }
 
 static void
 encoder_free(void *pp)
 {
-    if (pp) {
-        struct encoder *p = pp;
-        if (p->encoder) {
-            LZ4F_freeCompressionContext(p->encoder);
-        }
+    struct encoder *p = pp;
+    if (p->encoder) {
+        LZ4F_freeCompressionContext(p->encoder);
     }
 }
 
@@ -383,24 +379,20 @@ struct decoder
 static void
 decoder_mark(void *pp)
 {
-    if (pp) {
-        struct decoder *p = pp;
-        rb_gc_mark(p->inport);
-        rb_gc_mark(p->readbuf);
-    }
+    struct decoder *p = pp;
+    rb_gc_mark(p->inport);
+    rb_gc_mark(p->readbuf);
 }
 
 static void
 decoder_free(void *pp)
 {
-    if (pp) {
-        struct decoder *p = pp;
-        if (p->decoder) {
-            LZ4F_freeDecompressionContext(p->decoder);
-        }
-        if (p->blockbuf) {
-            free(p->blockbuf);
-        }
+    struct decoder *p = pp;
+    if (p->decoder) {
+        LZ4F_freeDecompressionContext(p->decoder);
+    }
+    if (p->blockbuf) {
+        free(p->blockbuf);
     }
 }
 
