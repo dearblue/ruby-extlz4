@@ -1,5 +1,5 @@
 
-# extlz4-0.2.1 (TRYOUT)
+# extlz4-0.2.1 (平成27年10月16日 金曜日)
 
   * lz4 ライブラリを r131 (https://github.com/Cyan4973/lz4/tree/r131) に更新
   * LZ4\_compress\_fast に対応
