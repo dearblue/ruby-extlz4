@@ -1,3 +1,21 @@
+# extlz4-0.2.2 (平成29年4月15日 土曜日)
+
+  * ``LZ4::FrameEncoder.new`` のフレームブロックサイズに対する既定値を
+    ``LZ4F_max4MB`` から ``LZ4F_default`` へと修正
+
+  * LZ4HC に関する定数を追加
+
+  * 外部シンボルの可視性を抑制するように修正
+
+    * コンパイラが "-fvisibility=hidden" を利用できる (gcc や clang などの)
+      場合、extlz4.so が持つ外部シンボルを必要最低限度となるように修正しました。
+
+  * **(BUGFIX)** ``LZ4::BlockEncoder``、``LZ4::BlockDecoder`` が SEGV
+    を起こしていた問題の修正
+
+  * **(BUGFIX)** ``LZ4::BlockEncoder``、``LZ4::BlockDecoder``、
+    ``LZ4::FrameEncoder``、``LZ4::FrameDecoder`` がメモリリークを起こしていた問題の修正
+
 
 # extlz4-0.2.1 (平成27年10月16日 金曜日)
 
