@@ -14,6 +14,51 @@ RDOCFAKE(extlz4_mLZ4 = rb_define_module("LZ4"));
 #define AUX_UNLIKELY(x) (x)
 #endif
 
+
+static void *
+aux_LZ4_compress_fast_continue_nogvl(va_list *vp)
+{
+    LZ4_stream_t *context = va_arg(*vp, LZ4_stream_t *);
+    const char *src = va_arg(*vp, const char *);
+    char *dest = va_arg(*vp, char *);
+    int srcsize = va_arg(*vp, int);
+    int destsize = va_arg(*vp, int);
+    int acceleration = va_arg(*vp, int);
+
+    // NOTE: キャストについては aux_LZ4_decompress_safe_continue_nogvl() を参照されたし
+    return (void *)(intptr_t)LZ4_compress_fast_continue(context, src, dest, srcsize, destsize, acceleration);
+}
+
+static int
+aux_LZ4_compress_fast_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration)
+{
+    return (int)aux_thread_call_without_gvl(
+            aux_LZ4_compress_fast_continue_nogvl, NULL,
+            context, src, dest, srcsize, destsize, acceleration);
+}
+
+static void *
+aux_LZ4_compressHC_continue_nogvl(va_list *vp)
+{
+    LZ4_streamHC_t *context = va_arg(*vp, LZ4_streamHC_t *);
+    const char *src = va_arg(*vp, const char *);
+    char *dest = va_arg(*vp, char *);
+    int srcsize = va_arg(*vp, int);
+    int destsize = va_arg(*vp, int);
+
+    // NOTE: キャストについては aux_LZ4_decompress_safe_continue_nogvl() を参照されたし
+    return (void *)(intptr_t)LZ4_compress_HC_continue(context, src, dest, srcsize, destsize);
+}
+
+static int
+aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
+{
+    (void)acceleration__ignored__;
+    return (int)aux_thread_call_without_gvl(
+            aux_LZ4_compressHC_continue_nogvl, NULL,
+            context, src, dest, srcsize, destsize);
+}
+
 static void *
 aux_LZ4_decompress_safe_continue_nogvl(va_list *vp)
 {
@@ -257,20 +302,13 @@ aux_LZ4_resetStream(LZ4_stream_t *context, int level__ignored__)
     LZ4_resetStream(context);
 }
 
-static int
-aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
-{
-    (void)acceleration__ignored__;
-    return LZ4_compress_HC_continue((LZ4_streamHC_t *)context, src, dest, srcsize, destsize);
-}
-
 static const struct blockencoder_traits blockencoder_traits_std = {
     .reset = (blockencoder_reset_f *)aux_LZ4_resetStream,
     .create = (blockencoder_create_f *)LZ4_createStream,
     .free = (blockencoder_free_f *)LZ4_freeStream,
     .loaddict = (blockencoder_loaddict_f *)LZ4_loadDict,
     .savedict = (blockencoder_savedict_f *)LZ4_saveDict,
-    .update = (blockencoder_update_f *)LZ4_compress_fast_continue,
+    .update = (blockencoder_update_f *)aux_LZ4_compress_fast_continue,
     /* .update_unlinked = (blockencoder_update_unlinked_f *)LZ4_compress_limitedOutput_withState, */
 };
 
