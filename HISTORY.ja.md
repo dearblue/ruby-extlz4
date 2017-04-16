@@ -1,3 +1,8 @@
+# extlz4-0.2.3 (平成29年4月16日 日曜日)
+
+  * ``LZ4::BlockEncoder#update`` と ``LZ4::BlockDecoder#update`` を nogvl 化
+
+
 # extlz4-0.2.2 (平成29年4月15日 土曜日)
 
   * ``LZ4::FrameEncoder.new`` のフレームブロックサイズに対する既定値を
