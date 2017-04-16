@@ -14,6 +14,28 @@ RDOCFAKE(extlz4_mLZ4 = rb_define_module("LZ4"));
 #define AUX_UNLIKELY(x) (x)
 #endif
 
+static void *
+aux_LZ4_decompress_safe_continue_nogvl(va_list *vp)
+{
+    LZ4_streamDecode_t *context = va_arg(*vp, LZ4_streamDecode_t *);
+    const char *src = va_arg(*vp, const char *);
+    char *dest = va_arg(*vp, char *);
+    int srcsize = va_arg(*vp, int);
+    int maxsize = va_arg(*vp, int);
+
+    // NOTE: キャストを (int) -> (intptr_t) -> (void *) としている理由は、
+    // NOTE: (int) -> (void *) とするとコンパイラが警告してくるのを避けるため
+    return (void *)(intptr_t)LZ4_decompress_safe_continue(context, src, dest, srcsize, maxsize);
+}
+
+static int
+aux_LZ4_decompress_safe_continue(LZ4_streamDecode_t *context, const char *src, char *dest, int srcsize, int maxsize)
+{
+    return (int)aux_thread_call_without_gvl(
+            aux_LZ4_decompress_safe_continue_nogvl, NULL,
+            context, src, dest, srcsize, maxsize);
+}
+
 static inline size_t
 aux_lz4_expandsize(const char **p, const char *end, size_t size)
 {
@@ -842,7 +864,7 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
     LZ4_setStreamDecode(p->context, p->dictbuf, p->dictsize);
-    int s = LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize);
+    int s = aux_LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize);
     if (s < 0) {
         rb_raise(extlz4_eError,
                 "`max_dest_size' too small, or corrupt lz4'd data");
