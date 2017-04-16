@@ -18,7 +18,7 @@ $ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' |
   * author: dearblue (mailto:dearblue@users.noreply.github.com)
   * report issue to: <https://github.com/dearblue/extlz4/issues>
   * how to install: `gem install extlz4`
-  * version: 0.2.2
+  * version: 0.2.3
   * product quality: technical preview
   * licensing: BSD-2-Clause License
   * dependency gems: none
