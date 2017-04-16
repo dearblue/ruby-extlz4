@@ -21,12 +21,12 @@ extern void extlz4_init_frameapi(void);
     })                                                          \
 
 static inline void *
-aux_thread_call_without_gvl(void *(*func)(void *), void (*cancel)(void *), ...)
+aux_thread_call_without_gvl(void *(*func)(va_list *), void (*cancel)(va_list *), ...)
 {
     va_list va1, va2;
     va_start(va1, cancel);
     va_start(va2, cancel);
-    void *s = rb_thread_call_without_gvl(func, &va1, cancel, &va2);
+    void *s = rb_thread_call_without_gvl((void *(*)(void *))func, &va1, (void (*)(void *))cancel, &va2);
     va_end(va1);
     va_end(va2);
     return s;

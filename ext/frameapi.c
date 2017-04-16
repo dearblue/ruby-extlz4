@@ -33,9 +33,8 @@ aux_lz4f_check_error(size_t err)
 }
 
 static void *
-aux_LZ4F_compressUpdate_nogvl(void *pp)
+aux_LZ4F_compressUpdate_nogvl(va_list *p)
 {
-    va_list *p = pp;
     LZ4F_compressionContext_t encoder = va_arg(*p, LZ4F_compressionContext_t);
     char *dest = va_arg(*p, char *);
     size_t destsize = va_arg(*p, size_t);
