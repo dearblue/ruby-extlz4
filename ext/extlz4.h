@@ -2,6 +2,8 @@
 #define EXTLZ4_H 1
 
 #include <ruby.h>
+#include <ruby/thread.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>
 

@@ -1,9 +1,7 @@
 #include "extlz4.h"
-#include <stdarg.h>
 #include <lz4frame.h>
 #include <lz4frame_static.h>
 #include "hashargs.h"
-#include <ruby/thread.h>
 
 static ID id_op_lshift;
 static ID id_read;
