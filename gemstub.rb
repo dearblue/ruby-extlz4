@@ -31,7 +31,7 @@ GEMSTUB = Gem::Specification.new do |s|
   s.description = <<EOS
 ruby bindings for LZ4 <https://github.com/lz4/lz4>.
 EOS
-  s.homepage = "https://github.com/dearblue/extlz4"
+  s.homepage = "https://github.com/dearblue/ruby-extlz4"
   s.license = "BSD-2-Clause"
   s.author = "dearblue"
   s.email = "dearblue@users.noreply.github.com"
