@@ -54,7 +54,7 @@ if localsymbol
   $defs << %q('-DRBEXT_API=__attribute__ ((visibility("default")))') <<
            %q(-DRBEXT_VISIBILITY=1)
 else
-  $defs << %q(-DRBEXT_API)
+  $defs << %q(-DRBEXT_API=)
 end
 
 create_makefile File.join(RUBY_VERSION[/\d+\.\d+/], "extlz4")
