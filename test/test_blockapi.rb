@@ -6,6 +6,11 @@ require "extlz4"
 require_relative "common"
 
 class TestBlockAPI < Test::Unit::TestCase
+  unless Object.const_defined?(:FrozenError)
+    # NOTE: FrozenError は ruby-2.5 で登場
+    FrozenError = RuntimeError
+  end
+
   SAMPLES.each_pair do |name, data|
     [-20, -10, -1, nil, 0, 1, 9].each do |level|
       define_method("test_block_encode_decode_sample:#{name}:level=#{level.inspect}", -> {
@@ -66,7 +71,7 @@ class TestBlockAPI < Test::Unit::TestCase
     assert_raise(TypeError) { LZ4.block_encode(nil) } # source is not string
     assert_raise(TypeError) { LZ4.block_encode(:bad_input) } # source is not string
     assert_raise(TypeError) { LZ4.block_encode(/bad-input/) } # source is not string
-    assert_raise(RuntimeError) { LZ4.block_encode(src, "bad-destbuf".freeze) } # can't modify frozen String
+    assert_raise(FrozenError) { LZ4.block_encode(src, "bad-destbuf".freeze) } # can't modify frozen String
     assert_raise(LZ4::Error) { LZ4.block_encode(src, 1) } # maxdest is too small
     assert_raise(LZ4::Error) { LZ4.block_encode(src, 1, buf) } # maxdest is too small
     assert_raise(TypeError) { LZ4.block_encode(src, "bad-maxsize", "a") } # "bad-maxsize" is not integer
@@ -90,7 +95,7 @@ class TestBlockAPI < Test::Unit::TestCase
     assert_raise(TypeError) { LZ4.block_decode(nil) } # source is not string
     assert_raise(TypeError) { LZ4.block_decode(:bad_input) } # source is not string
     assert_raise(TypeError) { LZ4.block_decode(/bad-input/) } # source is not string
-    assert_raise(RuntimeError) { LZ4.block_decode(src, "bad-destbuf".freeze) } # can't modify frozen String
+    assert_raise(FrozenError) { LZ4.block_decode(src, "bad-destbuf".freeze) } # can't modify frozen String
     assert_raise(TypeError) { LZ4.block_decode(src, "bad-maxsize", "a") } # "bad-maxsize" is not integer
 
     src2 = SAMPLES["\\xaa (small size)"]
