@@ -18,6 +18,8 @@ enum {
 
     AUX_LZ4F_BLOCK_SIZE_MAX = 4 * 1024 * 1024, /* 4 MiB : maximum block size of LZ4 Frame */
     AUX_LZ4F_FINISH_SIZE = 16, /* from lz4frame.c */
+
+    AUX_LZ4F_PARTIAL_READ_SIZE = 256 * 1024, /* 256 KiB */
 };
 
 /*** auxiliary and common functions ***/
@@ -354,12 +356,9 @@ fenc_inspect(VALUE enc)
 struct decoder
 {
     VALUE inport;
-    VALUE readbuf;   /* read buffer from inport */
-    char *blockbuf; /* decoded lz4 frame block buffer */
-    const char *blockend; /* end of blockbuf */
-    char *blockhead;
-    const char *blocktail;
-    size_t status;   /* status code of LZ4F_decompress */
+    VALUE readbuf;  /* read buffer from inport */
+    size_t bufoff;  /* offset in readbuf */
+    size_t status;  /* status code of LZ4F_decompress */
     LZ4F_frameInfo_t info;
     LZ4F_decompressionContext_t decoder;
 };
@@ -378,9 +377,6 @@ decoder_free(void *pp)
     struct decoder *p = pp;
     if (p->decoder) {
         LZ4F_freeDecompressionContext(p->decoder);
-    }
-    if (p->blockbuf) {
-        xfree(p->blockbuf);
     }
     memset(p, 0, sizeof(*p));
     xfree(p);
@@ -420,7 +416,10 @@ getdecoder(VALUE dec)
 static inline VALUE
 aux_read(VALUE obj, size_t size, VALUE buf)
 {
-    if (NIL_P(buf)) { buf = rb_str_buf_new(size); }
+    if (NIL_P(buf) || RB_OBJ_FROZEN(buf)) {
+        buf = rb_str_buf_new(size);
+    }
+
     if (NIL_P(AUX_FUNCALL(obj, id_read, SIZET2NUM(size), buf))) {
         return Qnil;
     } else {
@@ -452,31 +451,23 @@ fdec_init(int argc, VALUE argv[], VALUE dec)
     rb_obj_infect(dec, inport);
     p->inport = inport;
     p->readbuf = rb_str_buf_new(0);
+
+    p->readbuf = aux_read(inport, AUX_LZ4F_PARTIAL_READ_SIZE, p->readbuf);
     char *readp;
     size_t readsize;
+    aux_str_getmem(p->readbuf, &readp, &readsize);
+    if (readsize < 11) {
+        rb_raise(extlz4_eError,
+                 "unexpected EOF (read error) - #<%s:%p>",
+                 rb_obj_classname(inport), (const void *)inport);
+    }
     size_t zero = 0;
-    size_t s = 4; /* magic number size of lz4 frame */
-    int i;
-    for (i = 0; i < 2; i ++) {
-        /*
-         * first step: check magic number
-         * second step: check frame information
-         */
-        aux_read(inport, s, p->readbuf);
-        aux_str_getmem(p->readbuf, &readp, &readsize);
-        if (!readp || readsize < s) {
-            rb_raise(extlz4_eError, "read error (or already EOF)");
-        }
-        s = LZ4F_decompress(p->decoder, NULL, &zero, readp, &readsize, NULL);
+    p->status = LZ4F_decompress(p->decoder, NULL, &zero, readp, &readsize, NULL);
+    aux_lz4f_check_error(p->status);
+    size_t s = LZ4F_getFrameInfo(p->decoder, &p->info, NULL, &zero);
+    if (LZ4F_getErrorCode(s) != LZ4F_ERROR_frameHeader_incomplete) {
         aux_lz4f_check_error(s);
     }
-    p->status = s;
-    s = LZ4F_getFrameInfo(p->decoder, &p->info, NULL, &zero);
-    aux_lz4f_check_error(s);
-
-    size_t size = 1 << (p->info.blockSizeID * 2 + 8);
-    p->blockbuf = ALLOC_N(char, size);
-    p->blockend = p->blockbuf + size;
 
     return dec;
 }
@@ -506,29 +497,31 @@ fdec_read_args(int argc, VALUE argv[], size_t *size, VALUE *buf)
 }
 
 static size_t
-fdec_read_fetch(VALUE dec, struct decoder *p)
+fdec_read_decode(VALUE dec, struct decoder *p, char *dest, size_t size)
 {
-    size_t blocksize = p->blocktail - p->blockhead;
-    while (blocksize <= 0 && p->status != 0) {
-        VALUE v = aux_read(p->inport, p->status, p->readbuf);
-        char *readp;
-        size_t readsize;
-        aux_str_getmem(v, &readp, &readsize);
-        if (!readp) {
-            rb_raise(extlz4_eError,
-                    "read error - encounted invalid EOF - #<%s:%p>",
-                    rb_obj_classname(p->inport), (void *)p->inport);
+    const char *const desthead = dest;
+    uintptr_t desttail = (uintptr_t)dest + size;
+
+    while (p->status == 0 || (uintptr_t)dest < desttail) {
+        if (p->bufoff >= RSTRING_LEN(p->readbuf)) {
+            p->readbuf = aux_read(p->inport, AUX_LZ4F_PARTIAL_READ_SIZE, p->readbuf);
         }
 
-        rb_obj_infect(dec, v);
-        blocksize = p->blockend - p->blockbuf;
-        p->status = LZ4F_decompress(p->decoder, p->blockbuf, &blocksize, readp, &readsize, NULL);
+        char *readp;
+        size_t readsize;
+        if (!aux_str_getmem(p->readbuf, &readp, &readsize)) {
+            rb_raise(rb_eRuntimeError,
+                     "unexpected EOF (read error) - #<%s:%p>",
+                     rb_obj_classname(p->inport), (const void *)p->inport);
+        }
+
+        p->status = LZ4F_decompress(p->decoder, dest, &size, readp, &readsize, NULL);
         aux_lz4f_check_error(p->status);
-        p->blockhead = p->blockbuf;
-        p->blocktail = p->blockhead + blocksize;
+        dest += size;
+        size = desttail - (uintptr_t)dest;
     }
 
-    return blocksize;
+    return dest - desthead;
 }
 
 /*
@@ -553,22 +546,18 @@ fdec_read(int argc, VALUE argv[], VALUE dec)
         return Qnil;
     }
 
-    do {
-        size_t blocksize = fdec_read_fetch(dec, p);
-        rb_obj_infect(dest, dec);
+    char *destp;
+    size_t destsize;
+    RSTRING_GETMEM(dest, destp, destsize);
+    destsize = fdec_read_decode(dec, p, destp, destsize);
+    rb_obj_infect(dest, dec);
+    rb_str_set_len(dest, destsize);
 
-        if (size < blocksize) {
-            rb_str_buf_cat(dest, p->blockhead, size);
-            p->blockhead += size;
-            break;
-        } else {
-            rb_str_buf_cat(dest, p->blockhead, blocksize);
-            p->blocktail = p->blockhead = NULL;
-            size -= blocksize;
-        }
-    } while (size > 0 && p->status != 0);
-
-    return dest;
+    if (destsize > 0) {
+        return dest;
+    } else {
+        return Qnil;
+    }
 }
 
 /*
@@ -582,16 +571,18 @@ fdec_getc(VALUE dec)
 {
     struct decoder *p = getdecoder(dec);
 
-    for (;;) {
-        if (p->status == 0) {
-            return Qnil;
-        }
-        size_t blocksize = fdec_read_fetch(dec, p);
-        if (blocksize != 0) {
-            char ch = (uint8_t)*p->blockhead;
-            p->blockhead ++;
-            return rb_str_new(&ch, 1);
-        }
+    if (p->status == 0) {
+        return Qnil;
+    }
+
+    char ch;
+    size_t s = fdec_read_decode(dec, p, &ch, 1);
+    if (s > 0) {
+        VALUE v = rb_str_new(&ch, 1);
+        rb_obj_infect(v, dec);
+        return v;
+    } else {
+        return Qnil;
     }
 }
 
@@ -606,16 +597,12 @@ fdec_getbyte(VALUE dec)
 {
     struct decoder *p = getdecoder(dec);
 
-    for (;;) {
-        if (p->status == 0) {
-            return Qnil;
-        }
-        size_t blocksize = fdec_read_fetch(dec, p);
-        if (blocksize != 0) {
-            int ch = (uint8_t)*p->blockhead;
-            p->blockhead ++;
-            return INT2FIX(ch);
-        }
+    char ch;
+    size_t s = fdec_read_decode(dec, p, &ch, 1);
+    if (s > 0) {
+        return INT2FIX(ch);
+    } else {
+        return Qnil;
     }
 }
 
