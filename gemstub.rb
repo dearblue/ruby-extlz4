@@ -36,5 +36,5 @@ EOS
   s.author = "dearblue"
   s.email = "dearblue@users.noreply.github.com"
 
-  s.add_development_dependency "rake", "~> 12"
+  s.add_development_dependency "rake"
 end
