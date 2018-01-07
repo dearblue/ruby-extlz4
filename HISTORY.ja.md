@@ -1,3 +1,9 @@
+# extlz4-0.2.4 (平成30年1月7日 日曜日)
+
+  * Fix compilation error under Windows 10 (#1) (thanks to @pyjarrett)
+  * Upgrade lz4 to 1.8.0
+
+
 # extlz4-0.2.3 (平成29年4月16日 日曜日)
 
   * ``LZ4::BlockEncoder#update`` と ``LZ4::BlockDecoder#update`` を nogvl 化
