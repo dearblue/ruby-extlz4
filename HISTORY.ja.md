@@ -1,3 +1,8 @@
+# extlz4-0.2.4.1 (平成30年1月7日 日曜日)
+
+  * LZ4 Frame Stream の伸長処理が間違っていたため修正
+
+
 # extlz4-0.2.4 (平成30年1月7日 日曜日)
 
   * Fix compilation error under Windows 10 (#1) (thanks to @pyjarrett)
