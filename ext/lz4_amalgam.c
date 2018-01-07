@@ -19,6 +19,7 @@
 #define LZ4_count               amalg_LZ4_count
 #define limitedOutput           amalg_limitedOutput
 #define limitedOutput_directive amalg_limitedOutput_directive
+#define unalign                 amalg_unalign
 #include "../contrib/lz4/lib/lz4hc.c"
 
 #undef ALLOCATOR
