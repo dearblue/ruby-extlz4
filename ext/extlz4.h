@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#ifndef RB_OBJ_FROZEN
+#   define RB_OBJ_FROZEN    OBJ_FROZEN
+#endif
+
 extern VALUE extlz4_mLZ4;      /* module LZ4 */
 extern VALUE extlz4_eError;    /* class LZ4::Error < ::RuntimeError */
 
