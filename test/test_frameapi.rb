@@ -36,7 +36,7 @@ require_relative "common"
 class TestFrameAPI < Test::Unit::TestCase
   SAMPLES.each_pair do |name, data|
     define_method("test_encode_decode_sample:#{name}", -> {
-      assert(data, LZ4.decode(LZ4.encode(data)))
+      assert_equal(Digest::MD5.hexdigest(data), Digest::MD5.hexdigest(LZ4.decode(LZ4.encode(data))))
     })
   end
 
