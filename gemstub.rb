@@ -29,12 +29,13 @@ GEMSTUB = Gem::Specification.new do |s|
   s.version = ver
   s.summary = "ruby bindings for LZ4"
   s.description = <<EOS
-ruby bindings for LZ4 <https://github.com/lz4/lz4>.
+unofficial ruby bindings for LZ4 <https://github.com/lz4/lz4>.
 EOS
   s.homepage = "https://github.com/dearblue/ruby-extlz4"
   s.license = "BSD-2-Clause"
   s.author = "dearblue"
   s.email = "dearblue@users.noreply.github.com"
 
-  s.add_development_dependency "rake"
+  s.add_development_dependency "rake", "~> 1.12", ">= 1.12.3"
+  s.add_development_dependency "test-unit", "~> 3.2", ">= 3.2.7"
 end
