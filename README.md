@@ -18,14 +18,14 @@ $ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' |
   * author: dearblue (mailto:dearblue@users.noreply.github.com)
   * report issue to: <https://github.com/dearblue/ruby-extlz4/issues>
   * how to install: `gem install extlz4`
-  * version: 0.2.4.3
+  * version: 0.2.4.4
   * product quality: technical preview
   * licensing: BSD-2-Clause License
   * dependency gems: none
   * dependency external c libraries: none
   * bundled external c libraries:
-      * lz4-1.8 <https://github.com/lz4/lz4/tree/v1.8.0>
-        under [BSD 2-Clause license](https://github.com/lz4/lz4/tree/v1.8.0/LICENSE)
+      * lz4-1.8.1 <https://github.com/lz4/lz4/tree/v1.8.1>
+        under [BSD 2-Clause license](https://github.com/lz4/lz4/tree/v1.8.1/LICENSE)
         by [Yann Collet](https://github.com/Cyan4973)
 
 
