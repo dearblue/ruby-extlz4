@@ -503,7 +503,7 @@ fdec_read_args(int argc, VALUE argv[], size_t *size, VALUE *buf)
         *size = NUM2SIZET(argv[0]);
         *buf = argv[1];
         rb_check_type(*buf, RUBY_T_STRING);
-        rb_str_modify(*buf);
+        aux_str_reserve(*buf, *size);
         rb_str_set_len(*buf, 0);
         break;
     default:
