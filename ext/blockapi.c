@@ -504,7 +504,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize, p->level);
     if (s <= 0) {
         rb_raise(extlz4_eError,
-                "destsize too small (given destsize is %zu)",
+                "destsize too small (given destsize is %"PRIuSIZE")",
                 rb_str_capacity(dest));
     }
     p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
@@ -684,7 +684,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
     size_t srcsize = RSTRING_LEN(src);
     if (srcsize > LZ4_MAX_INPUT_SIZE) {
         rb_raise(extlz4_eError,
-                 "source size is too big for lz4 encode (given %zu, but max %zu bytes)",
+                 "source size is too big for lz4 encode (given %"PRIuSIZE", but max %"PRIuSIZE" bytes)",
                  srcsize, (size_t)LZ4_MAX_INPUT_SIZE);
     }
     aux_str_reserve(dest, maxsize);
