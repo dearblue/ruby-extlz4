@@ -5,28 +5,28 @@
 
 LZ4 データストリームを圧縮・伸張できます。lz4-cli で扱うことが出来ます。
 
-``` shell:shell
+```shell:shell
 $ dmesg | ruby -r extlz4 -e 'LZ4.encode_file($stdin.binmode, $stdout.binmode)' | lz4c -d | more
 ```
 
 ほかの ruby 向けの lz4 バインディングライブラリとしては KOMIYA Atsushi さんによる [lz4-ruby (http://rubygems.org/gems/lz4-ruby)](http://rubygems.org/gems/lz4-ruby) があります。
 
 
-## SUMMARY (概要)
+## FEATURES (機能)
 
-  * package name: extlz4
-  * author: dearblue (mailto:dearblue@users.noreply.github.com)
-  * report issue to: <https://github.com/dearblue/ruby-extlz4/issues>
-  * how to install: `gem install extlz4`
-  * version: 0.2.5
-  * product quality: technical preview
-  * licensing: BSD-2-Clause License
-  * dependency gems: none
-  * dependency external c libraries: none
-  * bundled external c libraries:
-      * lz4-1.8.1 <https://github.com/lz4/lz4/tree/v1.8.1>
-        under [BSD 2-Clause license](https://github.com/lz4/lz4/tree/v1.8.1/LICENSE)
-        by [Yann Collet](https://github.com/Cyan4973)
+  * Generic LZ4 frame data process (for `.lz4` file format)
+      * Decode LZ4 Frame data : `LZ4.decode`
+      * Encode LZ4 Frame data : `LZ4.encode`
+  * Generic LZ4 frame data file process (for `.lz4` file format)
+      * Decode LZ4 Frame data file : `LZ4.decode_file`
+      * Encode LZ4 Frame data file : `LZ4.encode_file`
+  * LZ4 block data process
+      * Decode LZ4 block data : `LZ4.block_decode`
+      * Encode LZ4 block data : `LZ4.block_encode` (supporting high compression level)
+      * Streaming Decode LZ4 block data : `LZ4.block_stream_decode` and `LZ4::BlockDecoder#update`
+      * Streaming Encode LZ4 block data : `LZ4.block_stream_encode` and `LZ4::BlockEncoder#update` (supporting high compression level)
+
+See [Quick reference](QUICKREF.md) for more details.
 
 
 ## ATTENTIONS (注意事項)
@@ -59,21 +59,6 @@ extlz4-0.1.1 でその不具合の修正を行いました。
 修復できるのはあくまで extlz4-0.1 のこの不具合に起因するファイルのみとなります。
 
 
-## FEATURES (機能)
-
-  * Generic LZ4 frame data process
-      * Decode LZ4 Frame data : LZ4.decode
-      * Encode LZ4 Frame data : LZ4.encode
-  * Generic LZ4 frame data file process
-      * Decode LZ4 Frame data file : LZ4.decode\_file
-      * Encode LZ4 Frame data file : LZ4.encode\_file
-  * LZ4 block data process
-      * Decode LZ4 block data : LZ4.block\_decode
-      * Encode LZ4 block data : LZ4.block\_encode (supporting high compression level)
-      * Streaming Decode LZ4 block data : LZ4.block\_stream\_decode and LZ4::BlockDecoder#update
-      * Streaming Encode LZ4 block data : LZ4.block\_stream\_encode and LZ4::BlockEncoder#update (supporting high compression level)
-
-
 ## ABOUT TAINT STATE AND SECURITY (汚染状態とセキュリティについて)
 
 extlz4 はオブジェクト間での汚染状態を一方向伝播します。
@@ -92,25 +77,25 @@ First, load extlz4. (最初に extlz4 を読み込んでください)
 require "extlz4"
 ```
 
-### Decoding (伸張処理)
+### One shot decoding from LZ4 Frame (LZ4 Frame 伸張処理)
 
 ``` ruby:ruby
 uncompressed_data_string = LZ4.decode(compressed_data_string)
 ```
 
-### Encoding (通常圧縮処理)
+### One shot encoding to LZ4 Frame (LZ4 Frame 通常圧縮処理)
 
 ``` ruby:ruby
 compressed_data_string = LZ4.encode(uncompressed_data_string)
 ```
 
-### High compression encoding (高圧縮処理)
+### One shot high compression encoding to LZ4 Frame (LZ4 Frame 高圧縮処理)
 
 ``` ruby:ruby
 compressed_data_string = LZ4.encode(uncompressed_data_string, 9)
 ```
 
-### Frame decoding
+### Stream decoding to LZ4 Frame
 
 ``` ruby:ruby
 File.open("sample.txt.lz4", "rb") do |file|
@@ -122,7 +107,7 @@ File.open("sample.txt.lz4", "rb") do |file|
 end
 ```
 
-### Frame encoding by high compression
+### Stream encoding by high compression to LZ4 Frame
 
 ``` ruby:ruby
 File.open("sample.txt.lz4", "wb") do |file|
@@ -133,7 +118,7 @@ File.open("sample.txt.lz4", "wb") do |file|
 end
 ```
 
-### Frame encoding without block
+### Stream encoding without block to LZ4 Frame
 
 ``` ruby:ruby
 file = File.open("sample.txt.lz4", "wb")
@@ -142,7 +127,7 @@ lz4 << "abcdefghijklmnopqrstuvwxyz\n"
 lz4.close  # VERY IMPORTANT!
 ```
 
-### Block data processing (fast compression encoding and decoding)
+### One shot block data processing to/from LZ4 Block (fast compression encoding and decoding)
 
 ``` ruby:ruby
 src = "abcdefg" * 100
@@ -151,7 +136,7 @@ data = LZ4.block_decode(lz4data)
 p src == data  # => true
 ```
 
-### Block data processing (high compression encoding and decoding)
+### One shot block data processing to/from LZ4 Block (high compression encoding and decoding)
 
 ``` ruby:ruby
 src = "abcdefg" * 100
@@ -161,7 +146,7 @@ data = LZ4.block_decode(lz4data)
 p src == data  # => true
 ```
 
-### Block data processing (high speed encoding)
+### One shot block data processing to/from LZ4 Block (high speed encoding)
 
 ``` ruby:ruby
 src = "abcdefg" * 100
@@ -169,7 +154,7 @@ level = -19 # transform to one's complement as acceleration
 lz4data = LZ4.block_encode(level, src)
 ```
 
-### Block stream data processing (high compression encoding and decoding)
+### Block stream data processing to/from LZ4 Block (high compression encoding and decoding)
 
 ``` ruby:ruby
 level = 8 # (OPTIONAL PARAMETER)
@@ -201,3 +186,21 @@ p src2 == data  # => true
 これは lz4 と同程度の機能を持ちます (車輪の再発明とも言う)。
 
 とはいえ、引数のとり方を変えてあり、gzip のような形で利用できます。
+
+
+## SPECIFICATION (仕様)
+
+  - package name: extlz4
+  - author: dearblue (mailto:dearblue@users.noreply.github.com)
+  - project page: <https://github.com/dearblue/ruby-extlz4>
+  - how to install: `gem install extlz4`
+  - version: 0.2.5
+  - product quality: technical preview
+  - licensing: [2 clause BSD License](LICENSE)
+  - dependency gems: none
+  - dependency external c libraries: none
+  - bundled external c libraries (git submodules):
+      - [lz4](https://github.com/lz4/lz4)
+        [version 1.9.0](https://github.com/lz4/lz4/tree/v1.9.0)
+        under [2 clause BSD license](https://github.com/lz4/lz4/blob/v1.9.0/LICENSE)
+        by [Yann Collet](https://github.com/Cyan4973)

@@ -1,3 +1,11 @@
+# extlz4-0.3 (平成31年4月)
+
+  * lz4-1.9.0 に更新
+  * `LZ4` モジュールをリファインメントとして利用できるように機能を追加
+      * `Object` および `String` クラスで `.to_lz4frame` `.unlz4frame` メソッドが利用できるようになりました。
+      * `String` クラスで `.to_lz4block` `.unlz4block` メソッドが利用できるようになりました。
+
+
 # extlz4-0.2.5 (平成30年1月14日 日曜日)
 
   * lz4 ライブラリを [1.8.1](https://github.com/lz4/lz4/releases/tag/v1.8.1) に更新
