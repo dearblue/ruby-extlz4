@@ -322,6 +322,52 @@ module LZ4
     alias block_stream_decompress block_stream_decode
     alias block_stream_uncompress block_stream_decode
   end
+
+  refine String do
+    #
+    # call-seq:
+    #   to_lz4frame(level = 1, opts = {}) -> lz4 frame'd data
+    #
+    def to_lz4frame(*args)
+      LZ4.encode self, *args
+    end
+
+    #
+    # call-seq:
+    #   unlz4frame -> decoded data
+    #
+    def unlz4frame(*args, &block)
+      LZ4.decode self, *args, &block
+    end
+
+    def to_lz4block(*args)
+      LZ4.block_encode(self, *args)
+    end
+
+    def unlz4block(*args)
+      LZ4.block_decode(self, *args)
+    end
+  end
+
+  refine Object do
+    #
+    # call-seq:
+    #   to_lz4frame(level = 1, opts = {}) -> stream encoder
+    #   to_lz4frame(level = 1, opts = {}) { |stream_encoder| ... } -> yield_status
+    #
+    def to_lz4frame(*args, &block)
+      LZ4.encode self, *args, &block
+    end
+
+    #
+    # call-seq:
+    #    -> decoder
+    #    { |decoder| ... } -> yield_status
+    #
+    def unlz4frame(*args, &block)
+      LZ4.decode self, *args, &block
+    end
+  end
 end
 
 require_relative "extlz4/compat"
