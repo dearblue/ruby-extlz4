@@ -194,7 +194,7 @@ p src2 == data  # => true
   - author: dearblue (mailto:dearblue@users.noreply.github.com)
   - project page: <https://github.com/dearblue/ruby-extlz4>
   - how to install: `gem install extlz4`
-  - version: 0.2.5
+  - version: 0.3
   - product quality: technical preview
   - licensing: [2 clause BSD License](LICENSE)
   - dependency gems: none
