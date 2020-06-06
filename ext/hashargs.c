@@ -142,7 +142,7 @@ rbx_scanhash(VALUE hash, VALUE rest, struct rbx_scanhash_arg *args, struct rbx_s
     hash = rbx_scanhash_to_hash(hash);
     if (!NIL_P(hash) && !RHASH_EMPTY_P(hash)) {
         struct rbx_scanhash_args argset = { args, end, rest };
-        rb_hash_foreach(hash, rbx_scanhash_foreach, (VALUE)&argset);
+        rb_hash_foreach(hash, (int (*)(VALUE, VALUE, VALUE))rbx_scanhash_foreach, (VALUE)&argset);
     }
 
     rbx_scanhash_check_missingkeys(args, end);

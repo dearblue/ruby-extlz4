@@ -32,7 +32,7 @@ aux_LZ4_compress_fast_continue_nogvl(va_list *vp)
 static int
 aux_LZ4_compress_fast_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration)
 {
-    return (int)aux_thread_call_without_gvl(
+    return (int)(intptr_t)aux_thread_call_without_gvl(
             aux_LZ4_compress_fast_continue_nogvl, NULL,
             context, src, dest, srcsize, destsize, acceleration);
 }
@@ -54,7 +54,7 @@ static int
 aux_LZ4_compressHC_continue(void *context, const char *src, char *dest, int srcsize, int destsize, int acceleration__ignored__)
 {
     (void)acceleration__ignored__;
-    return (int)aux_thread_call_without_gvl(
+    return (int)(intptr_t)aux_thread_call_without_gvl(
             aux_LZ4_compressHC_continue_nogvl, NULL,
             context, src, dest, srcsize, destsize);
 }
@@ -76,7 +76,7 @@ aux_LZ4_decompress_safe_continue_nogvl(va_list *vp)
 static int
 aux_LZ4_decompress_safe_continue(LZ4_streamDecode_t *context, const char *src, char *dest, int srcsize, int maxsize)
 {
-    return (int)aux_thread_call_without_gvl(
+    return (int)(intptr_t)aux_thread_call_without_gvl(
             aux_LZ4_decompress_safe_continue_nogvl, NULL,
             context, src, dest, srcsize, maxsize);
 }
