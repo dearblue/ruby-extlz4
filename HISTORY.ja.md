@@ -1,3 +1,10 @@
+# extlz4-0.3.1 (令和2年6月7日)
+
+  * lz4-1.9.2 に更新
+  * `extlz4.so` が `<extlz4-dir>/lib` へ置かれない環境に対応
+      * https://github.com/dearblue/ruby-extlz4/issues/2
+
+
 # extlz4-0.3 (平成31年4月)
 
   * lz4-1.9.0 に更新
