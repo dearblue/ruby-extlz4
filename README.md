@@ -201,6 +201,6 @@ p src2 == data  # => true
   - dependency external c libraries: none
   - bundled external c libraries (git submodules):
       - [lz4](https://github.com/lz4/lz4)
-        [version 1.9.0](https://github.com/lz4/lz4/tree/v1.9.0)
-        under [2 clause BSD license](https://github.com/lz4/lz4/blob/v1.9.0/LICENSE)
+        [version 1.9.2](https://github.com/lz4/lz4/tree/v1.9.2)
+        under [2 clause BSD license](https://github.com/lz4/lz4/blob/v1.9.2/LICENSE)
         by [Yann Collet](https://github.com/Cyan4973)
