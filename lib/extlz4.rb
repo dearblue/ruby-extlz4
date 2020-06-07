@@ -4,7 +4,11 @@ require "stringio"
 
 ver = RUBY_VERSION[/\d+\.\d+/]
 soname = File.basename(__FILE__, ".rb") << ".so"
-require_relative File.join(ver, soname)
+begin
+  require_relative File.join(ver, soname)
+rescue LoadError
+  require File.join(ver, soname)
+end
 
 require_relative "extlz4/version"
 
