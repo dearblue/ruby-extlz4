@@ -31,8 +31,8 @@ jobs:
       with:
         ruby-version: ${{matrix.RUBY_VERSION}}
     - name: Install dependencies
-      run: |
-        gem install test-unit
-        git submodule update --recommend-shallow
+      run: gem install test-unit
+    - name: Update git submodules
+      run: git submodule update --recommend-shallow
     - name: Run tests
       run: rake RUBYSET=ruby sofiles && ruby -I lib test/test_blockapi.rb && ruby -Ilib test/test_frameapi.rb
