@@ -33,6 +33,6 @@ jobs:
     - name: Install dependencies
       run: gem install test-unit
     - name: Update git submodules
-      run: git submodule update --recommend-shallow
+      run: git submodule update --init --recommend-shallow
     - name: Run tests
       run: rake RUBYSET=ruby sofiles && ruby -I lib test/test_blockapi.rb && ruby -Ilib test/test_frameapi.rb
