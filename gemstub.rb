@@ -35,6 +35,6 @@ EOS
   s.author = "dearblue"
   s.email = "dearblue@users.noreply.github.com"
 
-  s.add_development_dependency "rake", "~> 1.12", ">= 1.12.3"
-  s.add_development_dependency "test-unit", "~> 3.2", ">= 3.2.7"
+  s.add_development_dependency "rake", "~> 0"
+  s.add_development_dependency "test-unit", "~> 3.3"
 end
