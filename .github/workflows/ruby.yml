@@ -1,0 +1,38 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+# This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
+# For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+
+name: Ruby
+
+on:
+  push:
+    branches: "*"
+  pull_request:
+    branches: "*"
+jobs:
+  ubuntu-18-04:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        RUBY_VERSION:
+        - "2.6"
+        - "2.7"
+        - "head"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Ruby
+    # To automatically get bug fixes and new Ruby versions for ruby/setup-ruby,
+    # change this to (see https://github.com/ruby/setup-ruby#versioning):
+    # uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@21351ecc0a7c196081abca5dc55b08f085efe09a
+      with:
+        ruby-version: ${{matrix.RUBY_VERSION}}
+    - name: Install dependencies
+      run: gem install test-unit
+    - name: Update git submodules
+      run: git submodule update --init --recommend-shallow
+    - name: Run tests
+      run: rake RUBYSET=ruby sofiles && ruby -I lib test/test_blockapi.rb && ruby -Ilib test/test_frameapi.rb
