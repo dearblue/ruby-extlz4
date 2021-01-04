@@ -191,7 +191,7 @@ p src2 == data  # => true
 ## SPECIFICATION (仕様)
 
   - package name: extlz4
-  - author: dearblue (mailto:dearblue@users.noreply.github.com)
+  - author: dearblue (mailto:dearblue@users.osdn.me)
   - project page: <https://github.com/dearblue/ruby-extlz4>
   - how to install: `gem install extlz4`
   - version: 0.3.1

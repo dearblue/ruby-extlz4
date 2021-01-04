@@ -6,7 +6,7 @@
  * To the extent possible under law, dearblue has waived all copyright
  * and related or neighboring rights to this work.
  *
- *     dearblue <dearblue@users.noreply.github.com>
+ *     dearblue <dearblue@users.osdn.me>
  */
 
 #ifndef RBX_HASHARGS_H

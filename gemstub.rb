@@ -33,7 +33,7 @@ EOS
   s.homepage = "https://github.com/dearblue/ruby-extlz4"
   s.license = "BSD-2-Clause"
   s.author = "dearblue"
-  s.email = "dearblue@users.noreply.github.com"
+  s.email = "dearblue@users.osdn.me"
 
   s.add_development_dependency "rake", "~> 0"
   s.add_development_dependency "test-unit", "~> 3.3"
