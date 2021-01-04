@@ -10,8 +10,6 @@ rescue LoadError
   require File.join(ver, soname)
 end
 
-require_relative "extlz4/version"
-
 #
 # LZ4 data and streaming data processor.
 #
