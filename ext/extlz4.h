@@ -17,6 +17,10 @@ extern VALUE extlz4_eError;    /* class LZ4::Error < ::RuntimeError */
 extern void extlz4_init_blockapi(void);
 extern void extlz4_init_frameapi(void);
 
+#ifndef RB_EXT_RACTOR_SAFE
+# define RB_EXT_RACTOR_SAFE(FEATURE) ((void)(FEATURE))
+#endif
+
 #define AUX_FUNCALL(RECV, METHOD, ...)                          \
     ({                                                          \
         VALUE args__[] = { __VA_ARGS__ };                       \

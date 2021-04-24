@@ -40,6 +40,8 @@ VALUE extlz4_mLZ4;
 RBEXT_API void
 Init_extlz4(void)
 {
+    RB_EXT_RACTOR_SAFE(true);
+
     extlz4_mLZ4 = rb_define_module("LZ4");
 
     /*

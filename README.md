@@ -179,6 +179,11 @@ p src2 == data  # => true
 ```
 
 
+## Support `Ractor` with Ruby3
+
+Ruby3 で追加された `Ractor` に対応しています。
+
+
 ## BONUS (おまけ)
 
 コマンドラインプログラムとして ``extlz4`` が追加されます。
