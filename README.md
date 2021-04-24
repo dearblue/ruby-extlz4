@@ -199,7 +199,7 @@ Ruby3 で追加された `Ractor` に対応しています。
   - author: dearblue (mailto:dearblue@users.osdn.me)
   - project page: <https://github.com/dearblue/ruby-extlz4>
   - how to install: `gem install extlz4`
-  - version: 0.3.1
+  - version: 0.3.2
   - product quality: technical preview
   - licensing: [2 clause BSD License](LICENSE)
   - dependency gems: none
