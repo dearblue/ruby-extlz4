@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #ifndef RB_OBJ_FROZEN
 #   define RB_OBJ_FROZEN    OBJ_FROZEN
