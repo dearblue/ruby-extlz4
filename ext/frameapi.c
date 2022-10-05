@@ -210,7 +210,6 @@ fenc_init(int argc, VALUE argv[], VALUE enc)
     rb_str_set_len(p->workbuf, s);
     rb_funcall2(outport, id_op_lshift, 1, &p->workbuf);
     p->outport = outport;
-    rb_obj_infect(p->outport, enc);
     return enc;
 }
 
@@ -244,9 +243,6 @@ fenc_write(int argc, VALUE argv[], VALUE enc)
     struct encoder *p = getencoder(enc);
     VALUE src;
     rb_scan_args(argc, argv, "1", &src);
-    rb_obj_infect(enc, src);
-    rb_obj_infect(enc, p->workbuf);
-    rb_obj_infect(p->outport, enc);
     fenc_update(p, src, NULL);
     return enc;
 }
@@ -255,9 +251,6 @@ static VALUE
 fenc_push(VALUE enc, VALUE src)
 {
     struct encoder *p = getencoder(enc);
-    rb_obj_infect(enc, src);
-    rb_obj_infect(enc, p->workbuf);
-    rb_obj_infect(p->outport, enc);
     fenc_update(p, src, NULL);
     return enc;
 }
@@ -455,7 +448,6 @@ fdec_init(int argc, VALUE argv[], VALUE dec)
     rb_scan_args(argc, argv, "1", &inport);
     LZ4F_errorCode_t err = LZ4F_createDecompressionContext(&p->decoder, LZ4F_VERSION);
     aux_lz4f_check_error(err);
-    rb_obj_infect(dec, inport);
     p->inport = inport;
     p->readbuf = rb_str_buf_new(0);
     char *readp;
@@ -591,7 +583,6 @@ fdec_read(int argc, VALUE argv[], VALUE dec)
     VALUE dest;
     fdec_read_args(argc, argv, &size, &dest);
     if (size == 0) {
-        rb_obj_infect(dest, dec);
         return dest;
     }
 
@@ -616,7 +607,6 @@ fdec_read(int argc, VALUE argv[], VALUE dec)
         rb_str_resize(tmpbuf, 0);
     }
 
-    rb_obj_infect(dest, dec);
 
     if (RSTRING_LEN(dest) > 0) {
         return dest;
@@ -644,7 +634,6 @@ fdec_getc(VALUE dec)
     size_t s = fdec_read_decode(dec, p, &ch, 1);
     if (s > 0) {
         VALUE v = rb_str_new(&ch, 1);
-        rb_obj_infect(v, dec);
         return v;
     } else {
         return Qnil;
