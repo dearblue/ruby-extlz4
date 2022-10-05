@@ -188,7 +188,7 @@ aux_shouldbe_string(VALUE obj)
 static inline size_t
 aux_lz4_compressbound(VALUE src)
 {
-    return LZ4_compressBound(RSTRING_LEN(src));
+    return LZ4_compressBound(rb_long2int(RSTRING_LEN(src)));
 }
 
 enum {
@@ -441,7 +441,7 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
          * NOTE: すぐ下で LZ4_saveDict() を実行するため、
          * NOTE: p->predict のバッファ領域が保持されることはない。
          */
-        p->traits->loaddict(p->context, RSTRING_PTR(p->predict), RSTRING_LEN(p->predict));
+        p->traits->loaddict(p->context, RSTRING_PTR(p->predict), rb_long2int(RSTRING_LEN(p->predict)));
     }
 
     p->prefixsize = p->traits->savedict(p->context, p->prefix, sizeof(p->prefix));
@@ -492,7 +492,7 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
-    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize, p->level);
+    int s = p->traits->update(p->context, srcp, RSTRING_PTR(dest), aux_size2int(srcsize), aux_size2int(maxsize), p->level);
     if (s <= 0) {
         rb_raise(extlz4_eError,
                 "destsize too small (given destsize is %"PRIuSIZE")",
@@ -673,7 +673,7 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
     aux_str_reserve(dest, maxsize);
     rb_str_set_len(dest, 0);
 
-    int size = encoder(RSTRING_PTR(src), RSTRING_PTR(dest), srcsize, maxsize, level);
+    int size = encoder(RSTRING_PTR(src), RSTRING_PTR(dest), aux_size2int(srcsize), aux_size2int(maxsize), level);
     if (size <= 0) {
         rb_raise(extlz4_eError,
                  "failed LZ4 compress - maxsize is too small, or out of memory");
@@ -870,8 +870,8 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     const char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
-    LZ4_setStreamDecode(p->context, p->dictbuf, p->dictsize);
-    int s = aux_LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), srcsize, maxsize);
+    LZ4_setStreamDecode(p->context, p->dictbuf, aux_size2int(p->dictsize));
+    int s = aux_LZ4_decompress_safe_continue(p->context, srcp, RSTRING_PTR(dest), aux_size2int(srcsize), aux_size2int(maxsize));
     if (s < 0) {
         rb_raise(extlz4_eError,
                 "`max_dest_size' too small, or corrupt lz4'd data");
@@ -879,7 +879,7 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     rb_str_set_len(dest, s);
 
     /* copy prefix */
-    if (s < sizeof(p->dictbuf)) {
+    if ((size_t)s < sizeof(p->dictbuf)) {
         ssize_t discard = (p->dictsize + s) - sizeof(p->dictbuf);
         if (discard > 0) {
             size_t remain = p->dictsize - discard;
@@ -967,7 +967,7 @@ blkdec_s_decode(int argc, VALUE argv[], VALUE lz4)
     aux_str_reserve(dest, maxsize);
     rb_str_set_len(dest, 0);
 
-    int size = LZ4_decompress_safe(RSTRING_PTR(src), RSTRING_PTR(dest), RSTRING_LEN(src), maxsize);
+    int size = LZ4_decompress_safe(RSTRING_PTR(src), RSTRING_PTR(dest), rb_long2int(RSTRING_LEN(src)), aux_size2int(maxsize));
     if (size < 0) {
         rb_raise(extlz4_eError,
                  "failed LZ4_decompress_safe - max_dest_size is too small, or data is corrupted");

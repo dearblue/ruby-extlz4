@@ -111,4 +111,16 @@ getref(VALUE obj, const rb_data_type_t *type)
     return checkref(obj, getrefp(obj, type));
 }
 
+static inline int
+aux_size2int(size_t n)
+{
+    int m = (int)n;
+
+    if (m < 0 || (size_t)m != n) {
+        rb_raise(rb_eRangeError, "out of range integer conversion (size_t to int)");
+    }
+
+    return m;
+}
+
 #endif /* !EXTLZ4_H */

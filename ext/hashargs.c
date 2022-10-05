@@ -11,6 +11,12 @@
 
 #include "hashargs.h"
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# define aux_noreturn _Noreturn
+#else
+# define aux_noreturn
+#endif
+
 struct rbx_scanhash_args
 {
     struct rbx_scanhash_arg *args;
@@ -18,7 +24,7 @@ struct rbx_scanhash_args
     VALUE rest;
 };
 
-static void
+aux_noreturn static void
 rbx_scanhash_error(ID given, struct rbx_scanhash_arg *args, const struct rbx_scanhash_arg *end)
 {
     // 引数の数が㌧でもない数の場合、よくないことが起きそう。

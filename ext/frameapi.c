@@ -423,7 +423,7 @@ aux_read(VALUE obj, size_t size, VALUE buf)
     if (NIL_P(AUX_FUNCALL(obj, id_read, SIZET2NUM(size), buf))) {
         return Qnil;
     } else {
-        if (RSTRING_LEN(buf) > size) {
+        if ((size_t)RSTRING_LEN(buf) > size) {
             rb_raise(rb_eRuntimeError, "most read (%d, but expected to %d)", (int)RSTRING_LEN(buf), (int)size);
         }
         return buf;
@@ -511,7 +511,7 @@ fdec_read_fetch(VALUE dec, struct decoder *p)
         rb_str_set_len(p->inbuf, 0);
     }
 
-    while (RSTRING_LEN(p->inbuf) < p->status) {
+    while ((size_t)RSTRING_LEN(p->inbuf) < p->status) {
         p->readbuf = aux_read(p->inport, p->status - RSTRING_LEN(p->inbuf), p->readbuf);
         if (NIL_P(p->readbuf)) {
             rb_raise(rb_eRuntimeError,
@@ -547,7 +547,7 @@ fdec_read_decode(VALUE dec, struct decoder *p, char *dest, size_t size)
             break;
         }
 
-        if (p->status > 0 && p->outoff >= RSTRING_LEN(p->outbuf)) {
+        if (p->status > 0 && p->outoff >= (size_t)RSTRING_LEN(p->outbuf)) {
             fdec_read_fetch(dec, p);
         }
 
