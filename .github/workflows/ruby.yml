@@ -13,17 +13,20 @@ on:
   pull_request:
     branches: "*"
 jobs:
-  ubuntu-18-04:
-    runs-on: ubuntu-20.04
+  ubuntu-22-04:
+    runs-on: ubuntu-22.04
+    name: ubuntu-22.04 (mruby-${{matrix.RUBY_VERSION}})
+    timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         RUBY_VERSION:
-        - "2.6"
         - "2.7"
         - "3.0"
+        - "3.1"
         - "head"
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
