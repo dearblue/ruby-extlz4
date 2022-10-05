@@ -451,9 +451,6 @@ blkenc_setup(int argc, VALUE argv[], struct blockencoder *p, VALUE predict)
  * call-seq:
  *  initialize(level = nil, predict = nil)
  *
- * [INFECTION]
- *  +self+ <- +predict+
- *
  * [RETURN]
  *      self
  *
@@ -476,7 +473,6 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
     }
 
     blkenc_setup(argc, argv, p, Qnil);
-    rb_obj_infect(enc, p->predict);
 
     return enc;
 }
@@ -485,9 +481,6 @@ blkenc_init(int argc, VALUE argv[], VALUE enc)
  * call-seq:
  *  update(src, dest = "") -> dest
  *  update(src, max_dest_size, dest = "") -> dest
- *
- * [INFECTION]
- *      +dest+ <- +self+ <- +src+
  */
 static VALUE
 blkenc_update(int argc, VALUE argv[], VALUE enc)
@@ -496,8 +489,6 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
     VALUE src, dest;
     size_t maxsize;
     blockprocess_args(argc, argv, &src, &dest, &maxsize, NULL, aux_lz4_compressbound);
-    rb_obj_infect(enc, src);
-    rb_obj_infect(dest, enc);
     char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
@@ -517,9 +508,6 @@ blkenc_update(int argc, VALUE argv[], VALUE enc)
  *  reset(level = nil) -> self
  *  reset(level, predict) -> self
  *
- * [INFECTION]
- *  +self+ < +predict+
- *
  * Reset block stream encoder.
  */
 static VALUE
@@ -527,7 +515,6 @@ blkenc_reset(int argc, VALUE argv[], VALUE enc)
 {
     struct blockencoder *p = encoder_context(enc);
     blkenc_setup(argc, argv, p, p->predict);
-    rb_obj_infect(enc, p->predict);
 
     return enc;
 }
@@ -575,7 +562,6 @@ blkenc_savedict(int argc, VALUE argv[], VALUE enc)
     memcpy(RSTRING_PTR(dict), p->prefix, p->prefixsize);
     if (p->prefixsize > 0) {
         rb_str_set_len(dict, p->prefixsize);
-        rb_obj_infect(dict, enc);
         return dict;
     } else {
         return Qnil;
@@ -632,9 +618,6 @@ typedef int aux_lz4_encoder_f(const char *src, char *dest, int srcsize, int maxs
  *
  * 実装の都合上、圧縮関数は LZ4_compress_fast / LZ4_compress_HC が使われます。
  *
- * [INFECTION]
- *      +dest+ <- +src+
- *
  * [RETURN]
  *      圧縮されたデータが文字列として返ります。dest を指定した場合は、圧縮データを格納した dest を返します。
  *
@@ -689,7 +672,6 @@ blkenc_s_encode(int argc, VALUE argv[], VALUE lz4)
     }
     aux_str_reserve(dest, maxsize);
     rb_str_set_len(dest, 0);
-    rb_obj_infect(dest, src);
 
     int size = encoder(RSTRING_PTR(src), RSTRING_PTR(dest), srcsize, maxsize, level);
     if (size <= 0) {
@@ -838,9 +820,6 @@ blkdec_setup(int argc, VALUE argv[], VALUE predict, struct blockdecoder *p)
  * call-seq:
  *  initialize
  *  initialize(preset_dictionary)
- *
- * [INFECTION]
- *  +self+ < +preset_dictionary+
  */
 static VALUE
 blkdec_init(int argc, VALUE argv[], VALUE dec)
@@ -848,7 +827,6 @@ blkdec_init(int argc, VALUE argv[], VALUE dec)
     struct blockdecoder *p = getdecoder(dec);
 
     blkdec_setup(argc, argv, Qnil, p);
-    rb_obj_infect(dec, p->predict);
 
     return dec;
 }
@@ -857,9 +835,6 @@ blkdec_init(int argc, VALUE argv[], VALUE dec)
  * call-seq:
  *  reset
  *  reset(preset_dictionary)
- *
- * [INFECTION]
- *  +self+ < +preset_dictionary+
  */
 static VALUE
 blkdec_reset(int argc, VALUE argv[], VALUE dec)
@@ -867,7 +842,6 @@ blkdec_reset(int argc, VALUE argv[], VALUE dec)
     struct blockdecoder *p = getdecoder(dec);
 
     blkdec_setup(argc, argv, p->predict, p);
-    rb_obj_infect(dec, p->predict);
 
     return dec;
 }
@@ -884,9 +858,6 @@ blkdec_reset(int argc, VALUE argv[], VALUE dec)
  *
  * 出力先は、max_dest_size が与えられていない場合、必要に応じて自動的に拡張されます。
  * この場合、いったん圧縮された LZ4 データを走査するため、事前に僅かな CPU 時間を必要とします。
- *
- * [INFECTION]
- *      +dest+ < +self+ < +src+
  */
 static VALUE
 blkdec_update(int argc, VALUE argv[], VALUE dec)
@@ -896,8 +867,6 @@ blkdec_update(int argc, VALUE argv[], VALUE dec)
     VALUE src, dest;
     size_t maxsize;
     blockprocess_args(argc, argv, &src, &dest, &maxsize, NULL, aux_lz4_scansize);
-    rb_obj_infect(dec, src);
-    rb_obj_infect(dest, dec);
     const char *srcp;
     size_t srcsize;
     RSTRING_GETMEM(src, srcp, srcsize);
@@ -987,9 +956,6 @@ blkdec_s_linksize(VALUE mod, VALUE str)
  *
  * 出力先は、max_dest_size が与えられていない場合、必要に応じて自動的に拡張されます。
  * この場合、いったん圧縮された LZ4 データを走査するため、事前に僅かな CPU 時間を必要とします。
- *
- * [INFECTION]
- *      +dest+ < +src+
  */
 static VALUE
 blkdec_s_decode(int argc, VALUE argv[], VALUE lz4)
@@ -1000,7 +966,6 @@ blkdec_s_decode(int argc, VALUE argv[], VALUE lz4)
 
     aux_str_reserve(dest, maxsize);
     rb_str_set_len(dest, 0);
-    rb_obj_infect(dest, src);
 
     int size = LZ4_decompress_safe(RSTRING_PTR(src), RSTRING_PTR(dest), RSTRING_LEN(src), maxsize);
     if (size < 0) {
