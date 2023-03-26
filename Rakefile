@@ -35,6 +35,7 @@ GEMSTUB.executables.sort!
 PACKAGENAME = "#{GEMSTUB.name}-#{GEMSTUB.version}"
 GEMFILE = "#{PACKAGENAME}.gem"
 GEMSPEC = "#{PACKAGENAME}.gemspec"
+BUNDLER_GEMFILE = "Gemfile"
 
 GEMSTUB.files += DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + EXTRA
 GEMSTUB.files.sort!
@@ -194,6 +195,9 @@ task "package-name" do
   puts PACKAGENAME
 end
 
+desc "generate Gemfile for bundler"
+task "gemfile" => BUNDLER_GEMFILE
+
 file GEMFILE => DOC + EXT + EXTCONF + BIN + LIB + SPEC + TEST + EXAMPLE + RAKEFILE + [GEMSPEC] do
   sh "gem build #{GEMSPEC}"
 end
@@ -209,4 +213,22 @@ end
 
 file GEMSPEC_TRYOUT => RAKEFILE do
   File.write(GEMSPEC_TRYOUT, GEMSTUB_TRYOUT.to_ruby, mode: "wb")
+end
+
+file BUNDLER_GEMFILE => RAKEFILE do
+  File.write(BUNDLER_GEMFILE, <<~GemfileSource, mode: "wb")
+    source "https://rubygems.org/"
+
+    group "default" do
+    #{GEMSTUB.runtime_dependencies.map { |e|
+      %(  gem #{e.name.inspect}, #{e.requirements_list.map { |ee| ee.inspect }.join(", ")})
+    }.join("\n")}
+    end
+
+    group "development", "test" do
+    #{GEMSTUB.development_dependencies.map { |e|
+      %(  gem #{e.name.inspect}, #{e.requirements_list.map { |ee| ee.inspect }.join(", ")})
+    }.join("\n")}
+    end
+  GemfileSource
 end
