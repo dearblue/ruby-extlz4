@@ -689,13 +689,13 @@ init_blockencoder(void)
 {
     VALUE cBlockEncoder = rb_define_class_under(extlz4_mLZ4, "BlockEncoder", rb_cObject);
     rb_define_alloc_func(cBlockEncoder, blkenc_alloc);
-    rb_define_method(cBlockEncoder, "initialize", RUBY_METHOD_FUNC(blkenc_init), -1);
-    rb_define_method(cBlockEncoder, "reset", RUBY_METHOD_FUNC(blkenc_reset), -1);
-    rb_define_method(cBlockEncoder, "update", RUBY_METHOD_FUNC(blkenc_update), -1);
-    rb_define_method(cBlockEncoder, "release", RUBY_METHOD_FUNC(blkenc_release), 0);
-    rb_define_method(cBlockEncoder, "predict", RUBY_METHOD_FUNC(blkenc_predict), 0);
-    rb_define_method(cBlockEncoder, "savedict", RUBY_METHOD_FUNC(blkenc_savedict), -1);
-    rb_define_method(cBlockEncoder, "inspect", RUBY_METHOD_FUNC(blkenc_inspect), 0);
+    rb_define_method(cBlockEncoder, "initialize", blkenc_init, -1);
+    rb_define_method(cBlockEncoder, "reset", blkenc_reset, -1);
+    rb_define_method(cBlockEncoder, "update", blkenc_update, -1);
+    rb_define_method(cBlockEncoder, "release", blkenc_release, 0);
+    rb_define_method(cBlockEncoder, "predict", blkenc_predict, 0);
+    rb_define_method(cBlockEncoder, "savedict", blkenc_savedict, -1);
+    rb_define_method(cBlockEncoder, "inspect", blkenc_inspect, 0);
     rb_define_alias(cBlockEncoder, "encode", "update");
     rb_define_alias(cBlockEncoder, "compress", "update");
     rb_define_alias(cBlockEncoder, "free", "release");
@@ -983,10 +983,10 @@ init_blockdecoder(void)
 {
     VALUE cBlockDecoder = rb_define_class_under(extlz4_mLZ4, "BlockDecoder", rb_cObject);
     rb_define_alloc_func(cBlockDecoder, blkdec_alloc);
-    rb_define_method(cBlockDecoder, "initialize", RUBY_METHOD_FUNC(blkdec_init), -1);
-    rb_define_method(cBlockDecoder, "reset", RUBY_METHOD_FUNC(blkdec_reset), -1);
-    rb_define_method(cBlockDecoder, "update", RUBY_METHOD_FUNC(blkdec_update), -1);
-    rb_define_method(cBlockDecoder, "release", RUBY_METHOD_FUNC(blkdec_release), 0);
+    rb_define_method(cBlockDecoder, "initialize", blkdec_init, -1);
+    rb_define_method(cBlockDecoder, "reset", blkdec_reset, -1);
+    rb_define_method(cBlockDecoder, "update", blkdec_update, -1);
+    rb_define_method(cBlockDecoder, "release", blkdec_release, 0);
     rb_define_alias(cBlockDecoder, "decode", "update");
     rb_define_alias(cBlockDecoder, "decompress", "update");
     rb_define_alias(cBlockDecoder, "uncompress", "update");
